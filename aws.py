@@ -10,6 +10,7 @@ import paramiko
 import retrying
 import typing
 import time
+import json
 
 
 s3 = boto3.resource("s3")
@@ -40,6 +41,23 @@ class ClusterConfig:
         self.username = username
         self.key_name = key_name
         self.init_slave_count = init_slave_count
+
+    def json_show(self):
+        return json.dumps(self.__dict__, indent=4)
+
+    def json_load(self, json_text):
+        self.__dict__ = json.loads(json_text)
+
+    def pretty_show(self):
+        print("Key path: " + self.key_path)
+        print("Security Group ID: " + self.security_group_id)
+        print("Master Instance Type: " + self.master_type)
+        print("Master AMI ID: " + self.master_image)
+        print("Slave Instance Type: " + self.slave_type)
+        print("Slave AMI ID: " + self.slave_image)
+        print("AMI Username: " + self.username)
+        print("Private Key Path: " + self.key_name)
+        print("Initial Slave Count: " + str(self.init_slave_count))
 
 
 def create_master(config):
