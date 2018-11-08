@@ -5,13 +5,14 @@ import tempfile
 import subprocess
 import sys
 
-from cluster import Cluster
+from cluster import Cluster, AlreadyStartedException
 from clusterconfig import ClusterConfig
 
 class Interface:
-    def __init__(self, **kwargs):
-        self._config = ClusterConfig(**kwargs)
-        self._cluster = None
+    def __init__(self, config_path):
+        self._config_path = "config.json"
+        self._config = ClusterConfig(config_path)
+        self._cluster = Cluster(self._config)
         self._run = True
         # Map an input number to a *function or async function* that performs some action
         self._action_dict = {
@@ -27,8 +28,7 @@ class Interface:
         return self
 
     def __exit__(self, *_):
-        if self._cluster is not None:
-            self._cluster.stop()
+        self._cluster.stop()
 
     async def run(self):
         while self._run:
@@ -52,6 +52,7 @@ class Interface:
         print("    31: Get the admin password")
         print("    32: Get the admin service account token")
         print("4: Delete the cluster")
+        print("5: Test parallel SSH connections")
 
     def get_action(self):
         try:
@@ -73,40 +74,30 @@ class Interface:
         print(self._config.json_show())
 
     def edit_cluster_definition(self):
-        filepath = None
-        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as file:
-            filepath = file.name
-            file.write(self._config.json_show())
-
         # Let the user edit the JSON config
-        result = subprocess.call("$EDITOR " + filepath, shell=True)
-
+        result = subprocess.call("$EDITOR " + self._config_path, shell=True)
         if result != 0:
             print("Failed to edit file")
             return
-        with open(filepath, mode="r+") as file:
-            contents = file.read()
-            self._config.json_load(contents)
+
+        self._config.json_load_path(self._config_path)
 
     async def start_cluster(self):
-        self._cluster = Cluster(self._config)
-        await self._cluster.start()
+        try:
+            await self._cluster.start(self._config)
+        except AlreadyStartedException:
+            print("Cluster already started")
     
     def stop_cluster(self):
         self._cluster.stop()
-        self._cluster = None
 
     async def _ssh_test(self):
-        print(await self._cluster.run_ssh_on_all("sleep 20 ; date ; echo 'hi'"))
+        print("Command: " + str(await self._cluster.run_ssh_on_all("hostname ; date '+%X' ; sleep 10 ; date '+%X'")))
+        print("Script: " + str(await self._cluster.run_script_on_all("sshdemo.sh")))
 
 
 async def main():
-    with Interface(
-        key_path="/home/keith/.ssh/aws.pem",
-        security_group_id="sg-09895ef455657c2e0",
-        #TODO(kc506): Just for testing
-        init_slave_count=1,
-    ) as interface:
+    with Interface(config_path="config.json") as interface:
         await interface.run()
 
 if __name__ == "__main__":

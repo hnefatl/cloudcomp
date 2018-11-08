@@ -1,0 +1,11 @@
+{
+    "key_path": "/home/keith/.ssh/aws.pem",
+    "security_group_id": "sg-09895ef455657c2e0",
+    "master_type": "c4.large",
+    "master_ami": "ami-013be31976ca2c322",
+    "slave_type": "t2.small",
+    "slave_ami": "ami-013be31976ca2c322",
+    "username": "ec2-user",
+    "aws_keypair_name": "aws",
+    "init_slave_count": 1
+}

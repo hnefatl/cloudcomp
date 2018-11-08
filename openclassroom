@@ -1,0 +1,5 @@
+#!/bin/bash
+
+$BROWSER 'https://www.awseducate.com/student/s/launch-classroom?classroomId=a1v1N000003KLZ8QAO'
+
+$EDITOR ~/.aws/credentials
