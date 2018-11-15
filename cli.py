@@ -15,6 +15,7 @@ import clusterconfig
 # Sufficient to just pop these up? Or have to provide a subset of options and patch them in to the files?
 # Only way to edit seems to be manually editing or providing a complete file.
 
+
 class Interface:
     def __init__(self):
         self._config = clusterconfig.ClusterConfig()
@@ -24,11 +25,13 @@ class Interface:
         self._s3_bucket_path = None
         # Map an input number to an action
         self._action_dict = {
-            0:  self.stop,
-            1:  self.edit_cluster_definition,
+            0: self.stop,
+            1: self.edit_cluster_definition,
             11: self.print_cluster_definition,
             2:  self.start_cluster,
             21: self.validate_cluster,
+            22: self.deploy_dashboard,
+            23: self.access_dashboard,
             3:  self.view_cluster,
             4:  self.delete_cluster,
         }
@@ -99,28 +102,32 @@ class Interface:
         print(f"Creating s3 bucket {self._s3_bucket_path}")
         self._run_aws(["s3", "mb", self._s3_bucket_path]).check_returncode()
         print(f"Creating cluster: {self._config.cluster_name} in {self._config.zone}")
-        self._run_kops([
-            "create",
-            "cluster",
-            self._config.cluster_name,
-            "--zones",
-            self._config.zone,
-            "--authorization",
-            "AlwaysAllow",
-            "--master-count",
-            str(self._config.init_master_count),
-            "--master-size",
-            self._config.master_type,
-            "--node-size",
-            self._config.slave_type,
-            "--node-count",
-            str(self._config.init_slave_count),
-            "--yes",
-        ]).check_returncode()
+        self._run_kops(
+            [
+                "create",
+                "cluster",
+                self._config.cluster_name,
+                "--zones",
+                self._config.zone,
+                "--authorization",
+                "AlwaysAllow",
+                "--master-count",
+                str(self._config.init_master_count),
+                "--master-size",
+                self._config.master_type,
+                "--node-size",
+                self._config.slave_type,
+                "--node-count",
+                str(self._config.init_slave_count),
+                "--yes",
+            ]
+        ).check_returncode()
 
         # Run resources
         print("Running cluster")
-        self._run_kops(["update", "cluster", self._config.cluster_name, "--yes"]).check_returncode()
+        self._run_kops(
+            ["update", "cluster", self._config.cluster_name, "--yes"]
+        ).check_returncode()
         self._cluster_started = True
 
     def delete_cluster(self):
@@ -149,11 +156,27 @@ class Interface:
         self._run_kops(["get", "cluster", self._config.cluster_name]).check_returncode()
         self._run_kops(["get", "ig"]).check_returncode()
 
+    def deploy_dashboard(self):
+        print("Creating Dashboard")
+        self._run(
+            [
+                "kubectl",
+                "create",
+                "-f",
+                "https://raw.githubusercontent.com/kubernetes/kops/master/addons/kubernetes-dashboard/v1.8.3.yaml",
+            ]
+        )
+
+    def access_dashboard(self):
+        raise NotImplementedError
+
     def _run(self, args, **kwargs):
         dry = ["echo"] if self._dry_run else []
         return subprocess.run(dry + args, text=True, **kwargs)
+
     def _run_kops(self, args, **kwargs):
         return self._run(["kops", "--state", self._s3_bucket_path] + args, **kwargs)
+
     def _run_aws(self, args, **kwargs):
         return self._run(["aws"] + args, **kwargs)
 
@@ -174,6 +197,7 @@ class Interface:
 def main():
     with Interface() as interface:
         interface.run()
+
 
 if __name__ == "__main__":
     main()
