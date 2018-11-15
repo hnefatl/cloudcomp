@@ -1,3 +1,0 @@
-#!/bin/bash
-
-ssh -i ~/.ssh/aws.pem ec2-user@$@
