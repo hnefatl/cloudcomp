@@ -28,6 +28,7 @@ class Interface:
             1:  self.edit_cluster_definition,
             11: self.print_cluster_definition,
             2:  self.start_cluster,
+            3:  self.view_cluster,
             4:  self.delete_cluster,
         }
 
@@ -133,6 +134,13 @@ class Interface:
         self._run_aws(["s3", "rb", self._s3_bucket_path, "--force"]).check_returncode()
         self._cluster_started = False
 
+    def view_cluster(self):
+        if not self._cluster_started:
+            print("Cluster not started")
+            return
+        self._run_kops(["get", "cluster", self._config.cluster_name]).check_returncode()
+        self._run_kops(["get", "ig"]).check_returncode()
+
     def _run(self, args, **kwargs):
         dry = ["echo"] if self._dry_run else []
         return subprocess.run(dry + args, text=True, **kwargs)
@@ -142,7 +150,7 @@ class Interface:
         return self._run(["aws"] + args, **kwargs)
 
     def _get_master_name(self):
-        output = self._run_kops(["get", "ig"], capture_output=True).stdout
+        output = self._run_kops(["get", "ig"], capture_output=True, check=True).stdout
         for line in output.splitlines():
             # Each line is like "master-eu-west-1a Master ..."
             words = line.split()
