@@ -1,11 +1,11 @@
 #!/usr/bin/env python3.7
 
 import subprocess
-import sys
 import string
-
 import random
-import os
+import tempfile
+
+import clusterconfig
 
 # Configs:
 # kops --state s3://kubernetes.group8.qngwz edit cluster
@@ -16,17 +16,12 @@ import os
 # Only way to edit seems to be manually editing or providing a complete file.
 
 class Interface:
-    def __init__(self, config_path):
+    def __init__(self):
+        self._config = clusterconfig.ClusterConfig()
         self._running = True
-        self._cluster_created = False
-        self._cluster_started = False
         self._dry_run = False
-        self._cluster_name = "group8.cluster.k8s.local"
-        self._default_zone = "eu-west-1a"
-        # Generate a random s3 bucket name
-        random_suffix = "".join(random.choices(string.ascii_lowercase, k=5))
-        self._s3_bucket_name = f"kubernetes.group8.{random_suffix}"
-        self._s3_bucket_path = "s3://" + self._s3_bucket_name
+        self._cluster_started = False
+        self._s3_bucket_path = None
         # Map an input number to an action
         self._action_dict = {
             0:  self.stop,
@@ -78,24 +73,73 @@ class Interface:
         print("Invalid entry")
 
     def print_cluster_definition(self):
-        raise NotImplementedError()
+        print(self._config.json_show())
 
     def edit_cluster_definition(self):
-        if not self._cluster_created:
-            zone_name = input(f'Enter zone name (leave blank for default zone "{self._default_zone}"): ')
-            if zone_name == "":
-                zone_name = self._default_zone
-            print(f"Creating S3 bucket: {self._s3_bucket_path}")
-            self._run_aws(["s3", "mb", self._s3_bucket_path]).check_returncode()
-            print(f"Creating cluster: {self._cluster_name} in {zone_name}")
-            self._run_kops(["create", "cluster", self._cluster_name, "--zones", zone_name, "--yes"]).check_returncode()
-            self._cluster_created = True
-        input("Press enter to edit cluster definition:")
-        self._run_kops(["edit", "cluster"]).check_returncode()
-        input("Press enter to edit node definition:")
-        self._run_kops(["edit", "ig", "nodes"]).check_returncode()
-        input("Press enter to edit master definition:")
-        self._run_kops(["edit", "ig", self._get_master_name()]).check_returncode()
+        # Let the user edit the JSON config
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as f:
+            f.write(self._config.json_show())
+
+        result = subprocess.call("$EDITOR " + f.name, shell=True)
+        if result != 0:
+            print("Failed to edit file")
+            return
+        self._config.json_load_path(f.name)
+
+    def start_cluster(self):
+        if self._cluster_started:
+            print("Cluster already started")
+            return
+
+        self._s3_bucket_path = self._generate_random_bucket_path()
+
+        # Create resources
+        print(f"Creating s3 bucket {self._s3_bucket_path}")
+        self._run_aws(["s3", "mb", self._s3_bucket_path]).check_returncode()
+        print(f"Creating cluster: {self._config.cluster_name} in {self._config.zone}")
+        self._run_kops([
+            "create",
+            "cluster",
+            self._config.cluster_name,
+            "--zones",
+            self._config.zone,
+            "--authorization",
+            "AlwaysAllow",
+            "--master-count",
+            str(self._config.init_master_count),
+            "--master-size",
+            self._config.master_type,
+            "--node-size",
+            self._config.slave_type,
+            "--node-count",
+            str(self._config.init_slave_count),
+            "--yes",
+        ]).check_returncode()
+
+        # Run resources
+        print("Running cluster")
+        self._run_kops(["update", "cluster", self._config.cluster_name, "--yes"]).check_returncode()
+        self._cluster_started = True
+
+    def delete_cluster(self):
+        if not self._cluster_started:
+            print("Cluster not started")
+            return
+
+        # Delete resources
+        print("Deleting cluster")
+        self._run_kops(["delete", "cluster", self._config.cluster_name, "--yes"])
+        print("Deleting S3 bucket")
+        self._run_aws(["s3", "rb", self._s3_bucket_path, "--force"]).check_returncode()
+        self._cluster_started = False
+
+    def _run(self, args, **kwargs):
+        dry = ["echo"] if self._dry_run else []
+        return subprocess.run(dry + args, text=True, **kwargs)
+    def _run_kops(self, args, **kwargs):
+        return self._run(["kops", "--state", self._s3_bucket_path] + args, **kwargs)
+    def _run_aws(self, args, **kwargs):
+        return self._run(["aws"] + args, **kwargs)
 
     def _get_master_name(self):
         output = self._run_kops(["get", "ig"], capture_output=True).stdout
@@ -106,34 +150,14 @@ class Interface:
                 return words[0]
         raise RuntimeError("No master")
 
-    def start_cluster(self):
-        print("Running cluster")
-        self._run_kops(["update"]).check_returncode()
-        self._cluster_started = True
-
-    def stop_cluster(self):
-        pass
-
-    def delete_cluster(self):
-        if self._cluster_created:
-            print("Deleting S3 bucket")
-            self._run_aws(["s3", "rb", self._s3_bucket_path, "--force"]).check_returncode()
-        self.stop_cluster()
-
-    def _run(self, args, **kwargs):
-        dry = ["echo"] if self._dry_run else []
-        return subprocess.run(dry + args, text=True, **kwargs)
-    def _run_kops(self, args, **kwargs):
-        return self._run(["kops", "--state", self._s3_bucket_path] + args, **kwargs)
-    def _run_aws(self, args, **kwargs):
-        return self._run(["aws"] + args, **kwargs)
+    def _generate_random_bucket_path(self):
+        random_suffix = "".join(random.choices(string.ascii_lowercase, k=5))
+        return f"s3://{self._config.s3_bucket_prefix}.{random_suffix}"
 
 
 def main():
-    with Interface(config_path="config.json") as interface:
+    with Interface() as interface:
         interface.run()
 
 if __name__ == "__main__":
-    if sys.version_info < (3, 7, 0, "", 0):
-        raise RuntimeError("Python >=3.7 required")
     main()
