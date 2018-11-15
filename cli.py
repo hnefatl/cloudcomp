@@ -1,6 +1,5 @@
 #!/usr/bin/env python3.7
 
-import clusterconfig
 import subprocess
 import sys
 import string
@@ -20,6 +19,7 @@ class Interface:
     def __init__(self, config_path):
         self._running = True
         self._cluster_created = False
+        self._cluster_started = False
         self._dry_run = False
         self._cluster_name = "group8.cluster.k8s.local"
         self._default_zone = "eu-west-1a"
@@ -33,14 +33,14 @@ class Interface:
             1:  self.edit_cluster_definition,
             11: self.print_cluster_definition,
             2:  self.start_cluster,
-            4:  self.stop_cluster,
+            4:  self.delete_cluster,
         }
 
     def __enter__(self):
         return self
 
     def __exit__(self, *_):
-        self.stop_cluster()
+        self.delete_cluster()
 
     def run(self):
         while self._running:
@@ -81,18 +81,20 @@ class Interface:
         raise NotImplementedError()
 
     def edit_cluster_definition(self):
-        zone_name = input(f'Enter zone name (leave blank for default zone "{self._default_zone}"): ')
-        if zone_name == "":
-            zone_name = self._default_zone
-        print(f"Creating S3 bucket: {self._s3_bucket_path}")
-        self._run_aws(["s3", "mb", self._s3_bucket_path]).check_returncode()
-        print(f"Creating cluster: {self._cluster_name} in {zone_name}")
-        self._run_kops(["create", "cluster", self._cluster_name, "--zones", zone_name, "--yes"]).check_returncode()
-        print("Press enter to edit cluster definition:")
+        if not self._cluster_created:
+            zone_name = input(f'Enter zone name (leave blank for default zone "{self._default_zone}"): ')
+            if zone_name == "":
+                zone_name = self._default_zone
+            print(f"Creating S3 bucket: {self._s3_bucket_path}")
+            self._run_aws(["s3", "mb", self._s3_bucket_path]).check_returncode()
+            print(f"Creating cluster: {self._cluster_name} in {zone_name}")
+            self._run_kops(["create", "cluster", self._cluster_name, "--zones", zone_name, "--yes"]).check_returncode()
+            self._cluster_created = True
+        input("Press enter to edit cluster definition:")
         self._run_kops(["edit", "cluster"]).check_returncode()
-        print("Press enter to edit node definition:")
+        input("Press enter to edit node definition:")
         self._run_kops(["edit", "ig", "nodes"]).check_returncode()
-        print("Press enter to edit master definition:")
+        input("Press enter to edit master definition:")
         self._run_kops(["edit", "ig", self._get_master_name()]).check_returncode()
 
     def _get_master_name(self):
@@ -107,10 +109,16 @@ class Interface:
     def start_cluster(self):
         print("Running cluster")
         self._run_kops(["update"]).check_returncode()
-    
+        self._cluster_started = True
+
     def stop_cluster(self):
-        print("Deleting S3 bucket")
-        self._run_aws(["s3", "rb", self._s3_bucket_path, "--force"]).check_returncode()
+        pass
+
+    def delete_cluster(self):
+        if self._cluster_created:
+            print("Deleting S3 bucket")
+            self._run_aws(["s3", "rb", self._s3_bucket_path, "--force"]).check_returncode()
+        self.stop_cluster()
 
     def _run(self, args, **kwargs):
         dry = ["echo"] if self._dry_run else []
