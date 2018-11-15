@@ -28,6 +28,7 @@ class Interface:
             1:  self.edit_cluster_definition,
             11: self.print_cluster_definition,
             2:  self.start_cluster,
+            21: self.validate_cluster,
             3:  self.view_cluster,
             4:  self.delete_cluster,
         }
@@ -133,6 +134,13 @@ class Interface:
         print("Deleting S3 bucket")
         self._run_aws(["s3", "rb", self._s3_bucket_path, "--force"]).check_returncode()
         self._cluster_started = False
+
+    def validate_cluster(self):
+        if not self._cluster_started:
+            print("Cluster not started")
+            return
+
+        self._run_kops(["validate", "cluster", self._config.cluster_name]).check_returncode()
 
     def view_cluster(self):
         if not self._cluster_started:
