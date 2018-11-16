@@ -26,15 +26,16 @@ class Interface:
         self._s3_bucket_path = None
         # Map an input number to an action
         self._action_dict = {
-            0: self.stop,
-            1: self.edit_cluster_definition,
-            11: self.print_cluster_definition,
-            2:  self.start_cluster,
-            21: self.validate_cluster,
-            22: self.deploy_dashboard,
-            23: self.access_dashboard,
-            3:  self.view_cluster,
-            4:  self.delete_cluster,
+            "0":  self.stop,
+            "1":  self.edit_cluster_definition,
+            "11": self.print_cluster_definition,
+            "2":  self.start_cluster,
+            "21": self.validate_cluster,
+            "22": self.deploy_dashboard,
+            "23": self.access_dashboard,
+            "3":  self.view_cluster,
+            "4":  self.delete_cluster,
+            "c":  lambda: subprocess.call(["clear"]),
         }
 
     def __enter__(self):
@@ -68,7 +69,7 @@ class Interface:
 
     def get_action(self):
         try:
-            selection = int(input("Please enter your choice: "))
+            selection = input("Please enter your choice: ")
             return self._action_dict[selection]
         except EOFError:
             print()  # Newline puts user's cursor on following line
