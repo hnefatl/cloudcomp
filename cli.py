@@ -4,6 +4,7 @@ import subprocess
 import string
 import random
 import tempfile
+import time
 
 import clusterconfig
 
@@ -150,7 +151,6 @@ class Interface:
         if not self._cluster_started:
             print("Cluster not started")
             return
-
         self._run_kops(["validate", "cluster", self._config.cluster_name]).check_returncode()
 
     def view_cluster(self):
@@ -161,18 +161,26 @@ class Interface:
         self._run_kops(["get", "ig"]).check_returncode()
 
     def deploy_dashboard(self):
-        print("Creating Dashboard")
-        self._run(
+        print("Creating dashboard")
+        self._run_kubectl(
             [
-                "kubectl",
                 "create",
                 "-f",
                 "https://raw.githubusercontent.com/kubernetes/kops/master/addons/kubernetes-dashboard/v1.8.3.yaml",
             ]
-        )
+        ).check_returncode()
 
     def access_dashboard(self):
-        raise NotImplementedError
+        print("Launching proxy")
+        proxy = subprocess.Popen(["kubectl", "proxy"])
+        time.sleep(1)
+
+        print("Open http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/")
+
+        input("Press enter to kill proxy")
+        proxy.kill()
+        proxy.wait()
+        print("Proxy killed")
 
     def _run(self, args, **kwargs):
         dry = ["echo"] if self._dry_run else []
@@ -183,6 +191,9 @@ class Interface:
 
     def _run_aws(self, args, **kwargs):
         return self._run(["aws"] + args, **kwargs)
+
+    def _run_kubectl(self, args, **kwargs):
+        return self._run(["kubectl"] + args, **kwargs)
 
     def _get_master_name(self):
         output = self._run_kops(["get", "ig"], capture_output=True, check=True).stdout
