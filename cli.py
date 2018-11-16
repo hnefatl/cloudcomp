@@ -40,13 +40,17 @@ class Interface:
         return self
 
     def __exit__(self, *_):
-        self.delete_cluster()
+        if self._cluster_started:
+            self.delete_cluster()
 
     def run(self):
         while self._running:
             self.show_menu()
             action = self.get_action()
-            action()
+            try:
+                action()
+            except Exception as e:
+                print(e)
 
     def show_menu(self):
         print("0: Exit")
