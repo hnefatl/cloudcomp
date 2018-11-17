@@ -5,6 +5,7 @@ import string
 import random
 import tempfile
 import time
+import json
 
 import clusterconfig
 
@@ -26,16 +27,17 @@ class Interface:
         self._s3_bucket_path = None
         # Map an input number to an action
         self._action_dict = {
-            "0":  self.stop,
-            "1":  self.edit_cluster_definition,
-            "11": self.print_cluster_definition,
-            "2":  self.start_cluster,
-            "21": self.validate_cluster,
-            "22": self.deploy_dashboard,
-            "23": self.access_dashboard,
-            "3":  self.view_cluster,
-            "4":  self.delete_cluster,
-            "c":  lambda: subprocess.call(["clear"]),
+            0: self.stop,
+            1: self.edit_cluster_definition,
+            11: self.print_cluster_definition,
+            2: self.start_cluster,
+            21: self.validate_cluster,
+            22: self.deploy_dashboard,
+            23: self.access_dashboard,
+            3: self.view_cluster,
+            31: self.get_admin_password,
+            32: self.get_admin_service_token,
+            4: self.delete_cluster,
         }
 
     def __enter__(self):
@@ -152,7 +154,10 @@ class Interface:
         if not self._cluster_started:
             print("Cluster not started")
             return
-        self._run_kops(["validate", "cluster", self._config.cluster_name]).check_returncode()
+
+        self._run_kops(
+            ["validate", "cluster", self._config.cluster_name]
+        ).check_returncode()
 
     def view_cluster(self):
         if not self._cluster_started:
@@ -176,12 +181,41 @@ class Interface:
         proxy = subprocess.Popen(["kubectl", "proxy"])
         time.sleep(1)
 
-        print("Open http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/")
+        print(
+            "Open http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/"
+        )
 
         input("Press enter to kill proxy")
         proxy.kill()
         proxy.wait()
         print("Proxy killed")
+
+    def get_admin_password(self):
+        print("Getting Admin Password:\n")
+        self._run_kops(
+            ["get", "secrets", "--type", "secret", "admin", "-o", "plaintext"]
+        ).check_returncode()
+
+    def get_admin_service_token(self):
+        print("Getting Admin Service Token:\n")
+        try:
+            sa_proc = self._run(
+                ["kubectl", "get", "serviceaccount", "default", "-o", "json"],
+                capture_output=True,
+            )
+            sa_proc.check_returncode()
+            sa = json.loads(sa_proc.stdout)
+            sa_token_name = sa["secrets"][0]["name"]
+            sa_secrets_proc = self._run(
+                ["kubectl", "get", "secrets", sa_token_name, "-o", "json"],
+                capture_output=True,
+            )
+            sa_secrets_proc.check_returncode()
+            sa_secrets = json.loads(sa_secrets_proc.stdout)
+            print(sa_secrets["data"]["token"])
+        except (KeyError, IndexError, json.decoder.JSONDecodeError):
+            print("Unable to retrieve key")
+            raise
 
     def _run(self, args, **kwargs):
         dry = ["echo"] if self._dry_run else []
