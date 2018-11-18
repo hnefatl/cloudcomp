@@ -1,0 +1,5 @@
+spark-submit --jars hadoop-aws-2.7.0.jar,aws-java-sdk-1.7.4.jar test1.py
+
+Specifically these jar versions:
+From the docs https://hadoop.apache.org/docs/r3.1.0/hadoop-aws/tools/hadoop-aws/troubleshooting_s3a.html#Classpath_Setup, need to use the specific library versions that hadoop was built with.
+Using mvnrepository can track the precise dependency version numbers then download from maven search.
