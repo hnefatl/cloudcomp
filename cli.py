@@ -9,15 +9,6 @@ import json
 
 import clusterconfig
 
-# Configs:
-# kops --state s3://kubernetes.group8.qngwz edit cluster
-# kops --state s3://kubernetes.group8.qngwz get ig
-# kops --state s3://kubernetes.group8.qngwz edit ig nodes
-# kops --state s3://kubernetes.group8.qngwz edit ig master-eu-west-1a
-# Sufficient to just pop these up? Or have to provide a subset of options and patch them in to the files?
-# Only way to edit seems to be manually editing or providing a complete file.
-
-
 class Interface:
     def __init__(self):
         self._config = clusterconfig.ClusterConfig()
@@ -27,17 +18,18 @@ class Interface:
         self._s3_bucket_path = None
         # Map an input number to an action
         self._action_dict = {
-            0: self.stop,
-            1: self.edit_cluster_definition,
-            11: self.print_cluster_definition,
-            2: self.start_cluster,
-            21: self.validate_cluster,
-            22: self.deploy_dashboard,
-            23: self.access_dashboard,
-            3: self.view_cluster,
-            31: self.get_admin_password,
-            32: self.get_admin_service_token,
-            4: self.delete_cluster,
+            "0":  self.stop,
+            "1":  self.edit_cluster_definition,
+            "11": self.print_cluster_definition,
+            "2":  self.start_cluster,
+            "21": self.validate_cluster,
+            "22": self.deploy_dashboard,
+            "23": self.access_dashboard,
+            "3":  self.view_cluster,
+            "31": self.get_admin_password,
+            "32": self.get_admin_service_token,
+            "4":  self.delete_cluster,
+            "c":  lambda: subprocess.call("clear"),
         }
 
     def __enter__(self):
