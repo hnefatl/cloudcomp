@@ -1,5 +1,2 @@
-- python3.7
-
 - boto3
-- retrying
-- paramiko
+- psycopg2-binary
