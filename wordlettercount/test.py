@@ -1,15 +1,16 @@
-from pyspark.sql import SparkSession
+#!/usr/bin/env python3
 
-print("asdf hello wtf123")
-logFile = (
-    "/home/reeto/Dropbox/Code/cloudcomp/wordlettercount/asdf"
-)  # Should be some file on your system
-spark = SparkSession.builder.appName("SimpleApp").getOrCreate()
-logData = spark.read.text(logFile).cache()
+import pyspark
+import re
 
-numAs = logData.filter(logData.value.contains("a")).count()
-numBs = logData.filter(logData.value.contains("b")).count()
+sc = pyspark.SparkContext("local", "WordLetterCount", pyFiles=[])
 
-print("Lines with a: %i, lines with b: %i" % (numAs, numBs))
+text_file = sc.textFile("s3n://group8.foo/asdf")
 
-spark.stop()
+results = text_file \
+            .flatMap(lambda line: re.findall(r"\w+", line)) \
+            .map(lambda word: (word, 1)) \
+            .reduceByKey(lambda x, y: x + y) \
+            .sortBy(lambda x: x[1], False)
+
+results.saveAsTextFile("output.txt")
