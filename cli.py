@@ -21,6 +21,7 @@ class Interface:
             "0":  self.stop,
             "1":  self.edit_cluster_definition,
             "11": self.print_cluster_definition,
+            "12": self.set_existing_cluster,
             "2":  self.start_cluster,
             "21": self.validate_cluster,
             "22": self.deploy_dashboard,
@@ -52,6 +53,7 @@ class Interface:
         print("0: Exit")
         print("1: Define a Kubernetes Cluster")
         print("    11: Review the cluster definition")
+        print("    12: Load an existing cluster")
         print("2: Launch the cluster on AWS")
         print("    21: Validate the cluster")
         print("    22: Deploy the Kubernetes web dashboard")
@@ -141,6 +143,12 @@ class Interface:
         print("Deleting S3 bucket")
         self._run_aws(["s3", "rb", self._s3_bucket_path, "--force"]).check_returncode()
         self._cluster_started = False
+
+    def set_existing_cluster(self):
+        self._s3_bucket_path = input("Enter state store url (eg. s3://kubernetes.group8 or kubernetes.group8): ")
+        if not self._s3_bucket_path.startswith("s3://"):
+            self._s3_bucket_path = "s3://" + self._s3_bucket_path
+        self._cluster_started = True
 
     def validate_cluster(self):
         if not self._cluster_started:
