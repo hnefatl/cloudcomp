@@ -1,13 +1,17 @@
 #!/usr/bin/env python3.7
 
+import boto3
 import subprocess
 import string
 import random
 import tempfile
 import time
 import json
+import pathlib
 
 import clusterconfig
+import rds
+
 
 class Interface:
     def __init__(self):
@@ -16,6 +20,7 @@ class Interface:
         self._dry_run = False
         self._cluster_started = False
         self._s3_bucket_path = None
+        self._rds = None
         # Map an input number to an action
         self._action_dict = {
             "0":  self.stop,
@@ -30,7 +35,7 @@ class Interface:
             "31": self.get_admin_password,
             "32": self.get_admin_service_token,
             "4":  self.delete_cluster,
-            "c":  lambda: subprocess.call("clear"),
+            "c":  lambda: subprocess.call("clear", check=True),
         }
 
     def __enter__(self):
@@ -98,7 +103,9 @@ class Interface:
             print("Cluster already started")
             return
 
-        self._s3_bucket_path = self._generate_random_bucket_path()
+        rand = self._generate_random_string()
+        self._rds = rds.RDS(self._config.zone, f"group8-{rand}")
+        self._s3_bucket_path = f"s3://{self._config.s3_bucket_prefix}.{rand}"
 
         # Create resources
         print(f"Creating s3 bucket {self._s3_bucket_path}")
@@ -125,6 +132,11 @@ class Interface:
             ]
         ).check_returncode()
 
+        # Create database instance
+        print("Creating RDS instance")
+        self._rds.create_instance()
+        print(f"RDS instance running on {self._rds.get_instance_endpoint()}")
+
         # Run resources
         print("Running cluster")
         self._run_kops(
@@ -143,6 +155,9 @@ class Interface:
         print("Deleting S3 bucket")
         self._run_aws(["s3", "rb", self._s3_bucket_path, "--force"]).check_returncode()
         self._cluster_started = False
+        print("Deleting RDS instance")
+        self._rds.delete_instance()
+        self._rds = None
 
     def set_existing_cluster(self):
         self._s3_bucket_path = input("Enter state store url (eg. s3://kubernetes.group8 or kubernetes.group8): ")
@@ -239,12 +254,27 @@ class Interface:
                 return words[0]
         raise RuntimeError("No master")
 
-    def _generate_random_bucket_path(self):
-        random_suffix = "".join(random.choices(string.ascii_lowercase, k=5))
-        return f"s3://{self._config.s3_bucket_prefix}.{random_suffix}"
+    def _generate_random_string(self):
+        return "".join(random.choices(string.ascii_lowercase, k=5))
 
+def load_creds():
+    path = pathlib.Path.home() / pathlib.Path(".aws/credentials")
+    with path.open() as f:
+        lines = f.readlines()
+    access_key = None
+    secret_key = None
+    for line in lines:
+        segs = line.strip().split("=")
+        if len(segs) != 2:
+            continue
+        if segs[0] == "aws_access_key_id":
+            access_key = segs[1]
+        elif segs[0] == "aws_secret_access_key":
+            secret_key = segs[1]
+    return (access_key, secret_key)
 
 def main():
+    access_key, secret_key = load_creds()
     with Interface() as interface:
         interface.run()
 
