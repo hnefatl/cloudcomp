@@ -14,3 +14,16 @@ targeting the internet gateway created above.
 
 Create an RDS instance running Postgres, attached to the VPC, and using the VPC created above. Make sure it's set to be
 publicly available. Wait for it to start running then enter the host/port into the config.
+
+
+I've partially automated this:
+$ python
+> import rds
+> rds.create_vpc("eu-west-1", ["eu-west-1a", "eu-west-1b"]) # Whichever region, and at least two zones from that region
+'vpc-xxxx'
+> rds.create_subnet_group("eu-west-1", "vpc-xxxx", "group8.subnetgroup")
+> rds.create_instance("eu-west-1", "vpc-xxxx", "group8.subnetgroup", "group8-db", "username", "password")
+Then wait for the instance to start running on the AWS RDS console.
+
+To clean up the resources, you need to delete the RDS instance, the RDS subnet group, and the EC2 VPC using the AWS
+console. Deleting just these items will clean up all the other ones that were automatically created.
