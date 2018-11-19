@@ -89,7 +89,8 @@ def get_instance_endpoint(region, instance_id):
     raise RuntimeError("No instance found")
 
 # Delete existing tables, create new tables
-def initialise_instance(host, port, db_name, username, password):
+def initialise_instance(region, instance_id, db_name, username, password):
+    host, port = get_instance_endpoint(region, instance_id)
     with psycopg2.connect(
         f"host='{host}' port='{port}' dbname='{db_name}' user='{username}' password='{password}'",
         connect_timeout=10,
