@@ -10,6 +10,8 @@ def create_vpc(region, availability_zones):
     # VPC using some default 16-bit internal network
     vpc = ec2.create_vpc(CidrBlock="10.0.0.0/16")
     vpc.wait_until_available()
+    vpc.modify_attribute(EnableDnsSupport={"Value": True})
+    vpc.modify_attribute(EnableDnsHostnames={"Value": True})
 
     # Internet gateway for outbound routing
     gateway = ec2.create_internet_gateway()
@@ -74,16 +76,17 @@ def create_instance(region, vpc_id, subnet_group_name, instance_id, username, pa
         VpcSecurityGroupIds=[sg.id for sg in ec2.Vpc(vpc_id).security_groups.all()],
         DBSubnetGroupName=subnet_group_name,
         BackupRetentionPeriod=0,
+        PubliclyAccessible=True,
     )
 
 # Get the instance endpoint information
-def print_instance_endpoints(instance_id, region):
+def get_instance_endpoint(region, instance_id):
     rds = boto3.client("rds", region_name=region)
     instances = rds.describe_db_instances(DBInstanceIdentifier=instance_id)["DBInstances"]
     for instance in instances:
-        print(f'Instance ID: {instance["DBInstanceIdentifier"]}')
-        print(f'Host: {instance["Endpoint"]["Address"]}')
-        print(f'Port: {instance["Endpoint"]["Port"]}')
+        if instance_id == instance["DBInstanceIdentifier"]:
+            return (instance["Endpoint"]["Address"], instance["Endpoint"]["Port"])
+    raise RuntimeError("No instance found")
 
 # Delete existing tables, create new tables
 def initialise_instance(host, port, db_name, username, password):
