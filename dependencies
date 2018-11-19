@@ -1,2 +1,16 @@
 - boto3
 - psycopg2-binary
+
+
+Need a new VPC with at least two subnets, in at least two distinct availability zones (for the RDS instance).
+VPC's security group should allow PostgreSQL traffic.
+VPC should allow both DNS resolution and DNS hostnames.
+Add VPC id to config.
+
+Need to create and attach an internet gateway to the VPC.
+
+Create a route table? Edit the route table used for the subnets, to have a route entry with destination 0.0.0.0/0
+targeting the internet gateway created above.
+
+Create an RDS instance running Postgres, attached to the VPC, and using the VPC created above. Make sure it's set to be
+publicly available. Wait for it to start running then enter the host/port into the config.

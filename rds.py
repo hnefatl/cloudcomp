@@ -55,6 +55,8 @@ class RDS:
         cursor.execute("DROP TABLE IF EXISTS letters_spark")
         cursor.execute("CREATE TABLE words_spark ( rank INTEGER PRIMARY KEY, word TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )")
         cursor.execute("CREATE TABLE letters_spark ( rank INTEGER PRIMARY KEY, letter TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )")
+        cursor.close()
+        conn.close()
         
     def _wait_for_instance_available(self):
         self._wait_for_instance_state("db_instance_available")
