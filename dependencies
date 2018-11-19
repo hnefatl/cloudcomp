@@ -1,5 +1,5 @@
 - boto3
-- psycopg2-binary
+- psycopg2
 
 
 Need a new VPC with at least two subnets, in at least two distinct availability zones (for the RDS instance).
