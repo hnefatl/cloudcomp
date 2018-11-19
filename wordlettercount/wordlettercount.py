@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
 import sys
+import os
 import pathlib
 import pyspark
 
 try:
     import psycopg2
 except ImportError:
-    print(sys.environ["PYTHONPATH"])
+    print(os.environ["PYTHONPATH"])
 import re
 
 if len(sys.argv) != 8:
