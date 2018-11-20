@@ -1,5 +1,6 @@
 import boto3
-import psycopg2
+import pymysql
+import contextlib
 
 
 # Creates a vpc with all the required gadgets, with subnets in each of the given availability zones.
@@ -19,36 +20,38 @@ def create_vpc(region, availability_zones):
 
     # Route table to route outbound traffic: route any underspecified traffic to the gateway
     for route_table in vpc.route_tables.all():
-        route_table.create_route(DestinationCidrBlock="0.0.0.0/0", GatewayId=gateway.id) 
+        route_table.create_route(DestinationCidrBlock="0.0.0.0/0", GatewayId=gateway.id)
 
     # Subnets in different availability zones with different IP addresses, linked to a VPC and the route_table
     for i, zone in enumerate(availability_zones):
-        subnet = vpc.create_subnet(CidrBlock=f"10.0.{i}.0/24", VpcId=vpc.id, AvailabilityZone=zone)
+        subnet = vpc.create_subnet(
+            CidrBlock=f"10.0.{i}.0/24", VpcId=vpc.id, AvailabilityZone=zone
+        )
         route_table.associate_with_subnet(SubnetId=subnet.id)
 
     # Security group to allow SQL traffic
-    security = ec2.create_security_group(GroupName="group8.sec", Description="Group 8", VpcId=vpc.id)
+    security = ec2.create_security_group(
+        GroupName="group8.sec", Description="Group 8", VpcId=vpc.id
+    )
     security.authorize_ingress(
         IpPermissions=[
-            { # Allow SQL traffic
+            {  # Allow SQL traffic
                 "IpProtocol": "tcp",
-                "IpRanges": [ { "CidrIp": "0.0.0.0/0" } ],
-                "ToPort": 5432,
-                "FromPort": 5432,
+                "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
+                "ToPort": 3306,
+                "FromPort": 3306,
             },
-            { # Allow any traffic from the same security group
+            {  # Allow any traffic from the same security group
                 "IpProtocol": "-1",
                 "UserIdGroupPairs": [
-                    {
-                        "GroupId": str(security.id),
-                        "VpcId": str(vpc.id),
-                    }
-                ]
-            }
+                    {"GroupId": str(security.id), "VpcId": str(vpc.id)}
+                ],
+            },
         ]
     )
 
     return vpc.id
+
 
 def create_subnet_group(region, vpc_id, subnet_group_name):
     ec2 = boto3.resource("ec2", region_name=region)
@@ -61,6 +64,7 @@ def create_subnet_group(region, vpc_id, subnet_group_name):
         SubnetIds=[subnet.id for subnet in ec2.Vpc(vpc_id).subnets.all()],
     )
 
+
 def create_instance(region, vpc_id, subnet_group_name, instance_id, username, password):
     ec2 = boto3.resource("ec2", region_name=region)
     rds = boto3.client("rds", region_name=region)
@@ -70,7 +74,7 @@ def create_instance(region, vpc_id, subnet_group_name, instance_id, username, pa
         DBName="kc506_rc691_CloudComputingCoursework",
         DBInstanceClass="db.m5.large",
         AllocatedStorage=20,  # Minimum storage is 20GB
-        Engine="postgres",
+        Engine="mysql",
         MasterUsername=username,
         MasterUserPassword=password,
         VpcSecurityGroupIds=[sg.id for sg in ec2.Vpc(vpc_id).security_groups.all()],
@@ -79,23 +83,56 @@ def create_instance(region, vpc_id, subnet_group_name, instance_id, username, pa
         PubliclyAccessible=True,
     )
 
+
 # Get the instance endpoint information
 def get_instance_endpoint(region, instance_id):
     rds = boto3.client("rds", region_name=region)
-    instances = rds.describe_db_instances(DBInstanceIdentifier=instance_id)["DBInstances"]
+    instances = rds.describe_db_instances(DBInstanceIdentifier=instance_id)[
+        "DBInstances"
+    ]
     for instance in instances:
         if instance_id == instance["DBInstanceIdentifier"]:
             return (instance["Endpoint"]["Address"], instance["Endpoint"]["Port"])
     raise RuntimeError("No instance found")
 
+
+# pymysql connections commit on close but don't actually close themselves: this context manager wraps one to provide
+# sane behaviour.
+class pymysql_connect:
+    def __init__(self, *args, **kwargs):
+        self._conn = pymysql.connect(*args, **kwargs)
+        self._exitstack = contextlib.ExitStack()
+
+    def __enter__(self):
+        self._exitstack.enter_context(self._conn)
+        return self._conn
+
+    def __exit__(self, *_):
+        self._exitstack.close()
+        self._conn.close()
+
 # Delete existing tables, create new tables
 def initialise_instance(region, instance_id, db_name, username, password):
     host, port = get_instance_endpoint(region, instance_id)
-    with psycopg2.connect(
-        f"host='{host}' port='{port}' dbname='{db_name}' user='{username}' password='{password}'",
-        connect_timeout=10,
-    ) as conn, conn.cursor() as cursor:
-        cursor.execute("DROP TABLE IF EXISTS words_spark")
-        cursor.execute("DROP TABLE IF EXISTS letters_spark")
-        cursor.execute("CREATE TABLE words_spark ( rank INTEGER PRIMARY KEY, word TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )")
-        cursor.execute("CREATE TABLE letters_spark ( rank INTEGER PRIMARY KEY, letter TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )")
+    with pymysql_connect(
+        host=host, port=port, user=username, password=password, db=db_name
+    ) as connection, connection.cursor() as cursor:
+        cursor.execute("DROP TABLE IF EXISTS words_spark, letters_spark")
+        cursor.execute(
+            "CREATE TABLE words_spark ( rank INTEGER PRIMARY KEY, word TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )"
+        )
+        cursor.execute(
+            "CREATE TABLE letters_spark ( rank INTEGER PRIMARY KEY, letter TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )"
+        )
+
+# Temporary read demo
+def read_from_db(host, port, db_name, username, password):
+    with pymysql_connect(
+        host=host, port=port, user=username, password=password, db=db_name
+    ) as connection, connection.cursor() as cursor:
+        cursor.execute("SELECT * FROM words_spark")
+        print("Words: ")
+        print(list(cursor.fetchall()))
+        cursor.execute("SELECT * FROM letters_spark")
+        print("Letters: ")
+        print(list(cursor.fetchall()))
