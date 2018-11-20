@@ -13,8 +13,8 @@ class ClusterConfig:
         self.rds_password = "1234567890"
         self.master_type = "c4.large"
         self.slave_type = "t2.small"
-        self.init_master_count = 1
-        self.init_slave_count = 2
+        self.master_count = 1
+        self.slave_count = 2
         self.cluster_name = "{}.group8.cluster.k8s.local".format(getpass.getuser())
         self.s3_bucket_prefix = "kubernetes.group8"
 
