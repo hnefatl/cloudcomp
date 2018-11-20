@@ -122,8 +122,10 @@ class Interface:
         )
 
         # Create resources
-        print(f"Creating s3 bucket {self._s3_bucket_path}")
-        self._run_aws(["s3", "mb", self._s3_bucket_path]).check_returncode()
+        print(f"Creating s3 bucket {self._s3_bucket_path} in {self._config.region}")
+        self._run_aws(
+            ["s3", "mb", self._s3_bucket_path, "--region", self._config.region]
+        ).check_returncode()
         print(f"Creating cluster: {self._config.cluster_name} in {self._config.zone}")
         self._run_kops(
             [
@@ -254,6 +256,8 @@ class Interface:
             username=self._config.rds_username,
             password=self._config.rds_password,
         )
+        master_endpoint = self._get_master_endpoint()
+        print(f"Master endpoint: {master_endpoint}")
         print("Starting spark job")
         # Run the spark job
         subprocess.check_call(
@@ -261,7 +265,7 @@ class Interface:
                 "spark-submit",
                 # General config
                 "--master",
-                f"k8s://{self._get_master_endpoint()}",
+                f"k8s://{master_endpoint}",
                 "--deploy-mode",
                 "cluster",
                 "--name",
@@ -338,7 +342,7 @@ def load_creds():
     access_key = None
     secret_key = None
     for line in lines:
-        segs = line.strip().split("=")
+        segs = list(map(lambda s: s.strip(), line.split("=")))
         if len(segs) != 2:
             continue
         if segs[0] == "aws_access_key_id":
@@ -350,6 +354,10 @@ def load_creds():
 
 def main():
     access_key, secret_key = load_creds()
+    if access_key is None:
+        raise RuntimeError("Null access key")
+    if secret_key is None:
+        raise RuntimeError("Null secret key")
     with Interface(access_key, secret_key) as interface:
         interface.run()
 

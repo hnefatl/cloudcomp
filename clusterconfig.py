@@ -5,6 +5,7 @@ import getpass
 class ClusterConfig:
     def __init__(self):
         # Default values
+        self.region = "eu-west-1"
         self.zone = "eu-west-1a"
         self.vpc_id = "vpc-0ba327852e691da2b"
         self.rds_host = "group8.cqnxkff6jrcr.eu-west-1.rds.amazonaws.com"
