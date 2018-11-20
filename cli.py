@@ -5,6 +5,8 @@ import subprocess
 import string
 import random
 import tempfile
+import os
+import re
 import time
 import json
 import pathlib
@@ -14,36 +16,45 @@ import rds
 
 
 class Interface:
-    def __init__(self):
+    def __init__(self, aws_access_key, aws_secret_key):
         self._config = clusterconfig.ClusterConfig()
+        self._aws_access_key = aws_access_key
+        self._aws_secret_key = aws_secret_key
+        self._db_name = "kc506_rc691_CloudComputingCoursework"
         self._running = True
         self._dry_run = False
         self._cluster_started = False
         self._s3_bucket_path = None
-        self._rds = None
+
         # Map an input number to an action
         self._action_dict = {
-            "0":  self.stop,
-            "1":  self.edit_cluster_definition,
+            "0": self.stop,
+            "1": self.edit_cluster_definition,
             "11": self.print_cluster_definition,
             "12": self.set_existing_cluster,
-            "2":  self.start_cluster,
+            "2": self.start_cluster,
             "21": self.validate_cluster,
             "22": self.deploy_dashboard,
             "23": self.access_dashboard,
-            "3":  self.view_cluster,
+            "3": self.view_cluster,
             "31": self.get_admin_password,
             "32": self.get_admin_service_token,
-            "4":  self.delete_cluster,
-            "c":  lambda: subprocess.call("clear", check=True),
+            "4": self.delete_cluster,
+            "5": self.run_spark_app,
+            "51": self.view_spark_app,
+            "52": self.view_spark_app_output,
+            "c": lambda: subprocess.check_call("clear"),
         }
 
     def __enter__(self):
         return self
 
     def __exit__(self, *_):
-        if self._cluster_started:
-            self.delete_cluster()
+        # Don't automatically kill the cluster when we exit: useful for dev
+        # if self._cluster_started:
+        #    self.delete_cluster()
+        if self._s3_bucket_path is not None:
+            print(f"Leaving cluster running on {self._s3_bucket_path}")
 
     def run(self):
         while self._running:
@@ -67,6 +78,9 @@ class Interface:
         print("    31: Get the admin password")
         print("    32: Get the admin service account token")
         print("4: Delete the cluster")
+        print("5: Run Spark WordLetterCount App")
+        print("    51: View Spark App")
+        print("    52: Show Output")
 
     def get_action(self):
         try:
@@ -103,9 +117,9 @@ class Interface:
             print("Cluster already started")
             return
 
-        rand = self._generate_random_string()
-        self._rds = rds.RDS(self._config.zone, f"group8-{rand}")
-        self._s3_bucket_path = f"s3://{self._config.s3_bucket_prefix}.{rand}"
+        self._s3_bucket_path = (
+            f"s3://{self._config.s3_bucket_prefix}.{self._generate_random_string()}"
+        )
 
         # Create resources
         print(f"Creating s3 bucket {self._s3_bucket_path}")
@@ -132,11 +146,6 @@ class Interface:
             ]
         ).check_returncode()
 
-        # Create database instance
-        print("Creating RDS instance")
-        self._rds.create_instance()
-        print(f"RDS instance running on {self._rds.get_instance_endpoint()}")
-
         # Run resources
         print("Running cluster")
         self._run_kops(
@@ -154,13 +163,13 @@ class Interface:
         self._run_kops(["delete", "cluster", self._config.cluster_name, "--yes"])
         print("Deleting S3 bucket")
         self._run_aws(["s3", "rb", self._s3_bucket_path, "--force"]).check_returncode()
+        self._s3_bucket_path = None
         self._cluster_started = False
-        print("Deleting RDS instance")
-        self._rds.delete_instance()
-        self._rds = None
 
     def set_existing_cluster(self):
-        self._s3_bucket_path = input("Enter state store url (eg. s3://kubernetes.group8 or kubernetes.group8): ")
+        self._s3_bucket_path = input(
+            "Enter state store url (eg. s3://kubernetes.group8 or kubernetes.group8): "
+        )
         if not self._s3_bucket_path.startswith("s3://"):
             self._s3_bucket_path = "s3://" + self._s3_bucket_path
         self._cluster_started = True
@@ -214,16 +223,14 @@ class Interface:
     def get_admin_service_token(self):
         print("Getting Admin Service Token:\n")
         try:
-            sa_proc = self._run(
-                ["kubectl", "get", "serviceaccount", "default", "-o", "json"],
-                capture_output=True,
+            sa_proc = self._run_kubectl(
+                ["get", "serviceaccount", "default", "-o", "json"], capture_output=True
             )
             sa_proc.check_returncode()
             sa = json.loads(sa_proc.stdout)
             sa_token_name = sa["secrets"][0]["name"]
-            sa_secrets_proc = self._run(
-                ["kubectl", "get", "secrets", sa_token_name, "-o", "json"],
-                capture_output=True,
+            sa_secrets_proc = self._run_kubectl(
+                ["get", "secrets", sa_token_name, "-o", "json"], capture_output=True
             )
             sa_secrets_proc.check_returncode()
             sa_secrets = json.loads(sa_secrets_proc.stdout)
@@ -231,6 +238,70 @@ class Interface:
         except (KeyError, IndexError, json.decoder.JSONDecodeError):
             print("Unable to retrieve key")
             raise
+
+    def run_spark_app(self):
+        print("Resetting database tables")
+        rds.initialise_instance(
+            host=self._config.rds_host,
+            port=self._config.rds_port,
+            db_name=self._db_name,
+            username=self._config.rds_username,
+            password=self._config.rds_password,
+        )
+        print("Starting spark job")
+        # Run the spark job
+        subprocess.check_call(
+            [
+                "spark-submit",
+                # General config
+                "--master",
+                f"k8s://{self._get_master_endpoint()}",
+                "--deploy-mode",
+                "cluster",
+                "--name",
+                "wordlettercount",
+                "--conf",
+                "spark.executor.instances=2",
+                "--conf",
+                "spark.kubernetes.pyspark.pythonVersion=3",
+                "--conf",
+                "spark.kubernetes.container.image=docker.io/clgroup8/wordlettercount:latest",
+                "--conf",
+                "spark.kubernetes.container.image.pullPolicy=Always",
+                # Script to run
+                "file:///usr/spark-2.4.0/work-dir/wordlettercount.py",
+                # Arguments to the script
+                self._aws_access_key,
+                self._aws_secret_key,
+                self._config.rds_host,
+                str(self._config.rds_port),
+                self._config.rds_username,
+                self._config.rds_password,
+                self._db_name,
+            ]
+        )
+
+    def view_spark_app(self):
+        directory = os.path.dirname(os.path.realpath(__file__))
+        subprocess.check_call(
+            ["less", f"{directory}/wordlettercount/wordlettercount.py"]
+        )
+
+    def view_spark_app_output(self):
+        with rds.pymysql_connect(
+            host=self._config.rds_host,
+            port=self._config.rds_port,
+            user=self._config.rds_username,
+            password=self._config.rds_password,
+            db=self._db_name,
+        ) as connection, connection.cursor() as cursor:
+            # TODO(kc506): Improve output formatting
+            cursor.execute("SELECT * FROM words_spark")
+            print("Words: ")
+            print(list(cursor.fetchall()))
+            cursor.execute("SELECT * FROM letters_spark")
+            print("Letters: ")
+            print(list(cursor.fetchall()))
 
     def _run(self, args, **kwargs):
         dry = ["echo"] if self._dry_run else []
@@ -245,17 +316,20 @@ class Interface:
     def _run_kubectl(self, args, **kwargs):
         return self._run(["kubectl"] + args, **kwargs)
 
-    def _get_master_name(self):
-        output = self._run_kops(["get", "ig"], capture_output=True, check=True).stdout
+    def _get_master_endpoint(self):
+        output = self._run_kubectl(
+            ["cluster-info"], capture_output=True, check=True
+        ).stdout
+        output = re.sub(r"\x1B\[[0-?]*[ -/]*[@-~]", "", output)  # Strip ANSI colours
+        search_string = "Kubernetes master is running at "
         for line in output.splitlines():
-            # Each line is like "master-eu-west-1a Master ..."
-            words = line.split()
-            if words[1] == "Master":
-                return words[0]
+            if line.startswith(search_string):
+                return line[len(search_string) :]
         raise RuntimeError("No master")
 
     def _generate_random_string(self):
         return "".join(random.choices(string.ascii_lowercase, k=5))
+
 
 def load_creds():
     path = pathlib.Path.home() / pathlib.Path(".aws/credentials")
@@ -273,9 +347,10 @@ def load_creds():
             secret_key = segs[1]
     return (access_key, secret_key)
 
+
 def main():
     access_key, secret_key = load_creds()
-    with Interface() as interface:
+    with Interface(access_key, secret_key) as interface:
         interface.run()
 
 

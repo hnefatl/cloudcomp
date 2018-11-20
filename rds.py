@@ -112,8 +112,7 @@ class pymysql_connect:
         self._conn.close()
 
 # Delete existing tables, create new tables
-def initialise_instance(region, instance_id, db_name, username, password):
-    host, port = get_instance_endpoint(region, instance_id)
+def initialise_instance(host, port, db_name, username, password):
     with pymysql_connect(
         host=host, port=port, user=username, password=password, db=db_name
     ) as connection, connection.cursor() as cursor:
@@ -124,15 +123,3 @@ def initialise_instance(region, instance_id, db_name, username, password):
         cursor.execute(
             "CREATE TABLE letters_spark ( rank INTEGER PRIMARY KEY, letter TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )"
         )
-
-# Temporary read demo
-def read_from_db(host, port, db_name, username, password):
-    with pymysql_connect(
-        host=host, port=port, user=username, password=password, db=db_name
-    ) as connection, connection.cursor() as cursor:
-        cursor.execute("SELECT * FROM words_spark")
-        print("Words: ")
-        print(list(cursor.fetchall()))
-        cursor.execute("SELECT * FROM letters_spark")
-        print("Letters: ")
-        print(list(cursor.fetchall()))
