@@ -4,12 +4,15 @@ import sys
 import os
 import pathlib
 import pyspark
+import requests
 
 try:
     import psycopg2
 except ImportError:
     print(os.environ["PYTHONPATH"])
 import re
+
+print(requests.get("https://ree.to").text)
 
 if len(sys.argv) != 8:
     raise RuntimeError(
