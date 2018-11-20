@@ -21,8 +21,10 @@ db_user = sys.argv[5]
 db_pass = sys.argv[6]
 db_name = sys.argv[7]
 input_url = sys.argv[8]
+if input_url.startswith("s3://"):
+    input_url = f"s3a{input_url[2:]}"
 if not input_url.startswith("s3a://"):
-    raise RuntimeError("input_file should be an s3a:// url.")
+    raise RuntimeError("input_file should be an s3:// or s3a:// url.")
 
 print(f"Access Key: {access_key}, Secret Key: {secret_key}")
 
@@ -78,6 +80,7 @@ class pymysql_connect:
         self._exitstack.close()
         self._conn.close()
 
+
 def write_to_db(host, port, db_name, username, password, data):
     word_data, letter_data = process(data)
 
@@ -86,7 +89,9 @@ def write_to_db(host, port, db_name, username, password, data):
         host=host, port=port, user=username, password=password, db=db_name
     ) as connection, connection.cursor() as cursor:
         cursor.executemany("INSERT INTO words_spark VALUES (%s,%s,%s,%s)", word_data)
-        cursor.executemany("INSERT INTO letters_spark VALUES (%s,%s,%s,%s)", letter_data)
+        cursor.executemany(
+            "INSERT INTO letters_spark VALUES (%s,%s,%s,%s)", letter_data
+        )
         connection.commit()
 
 
