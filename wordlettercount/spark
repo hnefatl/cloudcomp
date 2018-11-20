@@ -1,6 +1,14 @@
 #! /bin/bash
-MAIN_FILE=wordlettercount.py
-mapfile -t AWS_CREDS < <(awk '/ = / {print $NF}' ~/.aws/credentials)
+set -ex
+
+function _init() {
+    MAIN_FILE=wordlettercount.py
+    mapfile -t AWS_CREDS < <(awk '/ = / {print $NF}' ~/.aws/credentials)
+    if [ ! -f rds.py ]; then
+        ln -s ../rds.py .
+    fi
+    ./resetdb
+}
 
 function _build() {
     docker build . -t wordlettercount
@@ -13,6 +21,7 @@ function _kube_clean() {
 }
 
 function _kube() {
+    _init
     _kube_clean
     _build
     KUBE_MASTER=$(kubectl cluster-info | grep "master" | grep -o 'https://[^"]*.com')
@@ -28,15 +37,28 @@ function _kube() {
         --conf spark.kubernetes.container.image.pullPolicy=Always \
         "file:///usr/spark-2.4.0/work-dir/$MAIN_FILE" \
         "${AWS_CREDS[@]}" \
-        "$@"
+        "group8.cqnxkff6jrcr.eu-west-1.rds.amazonaws.com" \
+        "3306" \
+        "foo" \
+        "1234567890" \
+        "kc506_rc691_CloudComputingCoursework" \
+        "s3a://kubernetes.group8.samples/sample-$1.txt"
+    ./showdb
 }
 
 function _local() {
+    _init
     spark-submit \
         --jars aws-java-sdk-1.7.4.jar,hadoop-aws-2.7.0.jar \
         "$MAIN_FILE" \
         "${AWS_CREDS[@]}" \
-        "$@"
+        "group8.cqnxkff6jrcr.eu-west-1.rds.amazonaws.com" \
+        "3306" \
+        "foo" \
+        "1234567890" \
+        "kc506_rc691_CloudComputingCoursework" \
+        "s3a://kubernetes.group8.samples/sample-$1.txt"
+    ./showdb
 }
 
 case $1 in
@@ -49,7 +71,7 @@ case $1 in
         _local "$@"
         ;;
     *)
-        echo "Usage: spark [kubernetes|local] RUN_ARGS"
+        echo "Usage: spark [kubernetes|local] INPUT-SAMPLE-ID"
         echo "kubernetes - Launch in kubernetes"
         echo "local - Launch locally"
         exit 1
