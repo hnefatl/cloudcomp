@@ -7,9 +7,9 @@ import pyspark
 import pymysql
 import re
 
-if len(sys.argv) != 8:
+if len(sys.argv) != 9:
     raise RuntimeError(
-        "Usage: test.py <access_key> <secret_key> <db_host> <db_port> <db_user> <db_pass> <db_name>\n"
+        "Usage: test.py <access_key> <secret_key> <db_host> <db_port> <db_user> <db_pass> <db_name> <input_file>\n"
         + f"Got: {sys.argv[1:]}"
     )
 
@@ -20,6 +20,9 @@ db_port = sys.argv[4]
 db_user = sys.argv[5]
 db_pass = sys.argv[6]
 db_name = sys.argv[7]
+input_url = sys.argv[8]
+if not input_url.startswith("s3a://"):
+    raise RuntimeError("input_file should be an s3a:// url.")
 
 print(f"Access Key: {access_key}, Secret Key: {secret_key}")
 
@@ -27,7 +30,7 @@ sc = pyspark.SparkContext("local", "WordLetterCount")
 sc._jsc.hadoopConfiguration().set("fs.s3a.access.key", access_key)
 sc._jsc.hadoopConfiguration().set("fs.s3a.secret.key", secret_key)
 
-text_file = sc.textFile("s3a://group8.foo/asdf")
+text_file = sc.textFile(input_url)
 
 
 def mapper(word):

@@ -7,7 +7,6 @@ import random
 import tempfile
 import os
 import re
-import tabulate
 import time
 import json
 import pathlib
@@ -241,6 +240,10 @@ class Interface:
             raise
 
     def run_spark_app(self):
+        input_url = input(
+            "Enter s3 url to the input file (eg. s3a://kubernetes.group8/input.txt): "
+        )
+
         print("Resetting database tables")
         rds.initialise_instance(
             host=self._config.rds_host,
@@ -279,6 +282,7 @@ class Interface:
                 self._config.rds_username,
                 self._config.rds_password,
                 self._db_name,
+                input_url,
             ]
         )
 
@@ -289,22 +293,13 @@ class Interface:
         )
 
     def view_spark_app_output(self):
-        with rds.pymysql_connect(
-            host=self._config.rds_host,
-            port=self._config.rds_port,
-            user=self._config.rds_username,
-            password=self._config.rds_password,
-            db=self._db_name,
-        ) as connection, connection.cursor() as cursor:
-            headers = ["Rank", "Word", "Category", "Frequency"]
-
-            cursor.execute("SELECT * FROM words_spark")
-            print("Words: ")
-            print(tabulate.tabulate(cursor.fetchall(), headers=headers))
-
-            cursor.execute("SELECT * FROM letters_spark")
-            print("Letters: ")
-            print(tabulate.tabulate(cursor.fetchall(), headers=headers))
+        rds.show_db_contents(
+            self._config.rds_host,
+            self._config.rds_port,
+            self._db_name,
+            self._config.rds_username,
+            self._config.rds_password,
+        )
 
     def _run(self, args, **kwargs):
         dry = ["echo"] if self._dry_run else []

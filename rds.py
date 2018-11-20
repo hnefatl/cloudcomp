@@ -1,5 +1,6 @@
 import boto3
 import pymysql
+import tabulate
 import contextlib
 
 
@@ -111,6 +112,7 @@ class pymysql_connect:
         self._exitstack.close()
         self._conn.close()
 
+
 # Delete existing tables, create new tables
 def initialise_instance(host, port, db_name, username, password):
     with pymysql_connect(
@@ -123,3 +125,18 @@ def initialise_instance(host, port, db_name, username, password):
         cursor.execute(
             "CREATE TABLE letters_spark ( rank INTEGER PRIMARY KEY, letter TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )"
         )
+
+
+def show_db_contents(host, port, db_name, username, password):
+    with pymysql_connect(
+        host=host, port=port, user=username, password=password, db=db_name
+    ) as connection, connection.cursor() as cursor:
+        headers = ["Rank", "Word", "Category", "Frequency"]
+
+        cursor.execute("SELECT * FROM words_spark")
+        print("Words: ")
+        print(tabulate.tabulate(cursor.fetchall(), headers=headers))
+
+        cursor.execute("SELECT * FROM letters_spark")
+        print("Letters: ")
+        print(tabulate.tabulate(cursor.fetchall(), headers=headers))
