@@ -142,6 +142,8 @@ class Interface:
                 self._config.slave_type,
                 "--node-count",
                 str(self._config.init_slave_count),
+                "--vpc",
+                self._config.vpc_id,
                 "--yes",
             ]
         ).check_returncode()
