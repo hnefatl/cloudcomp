@@ -1,4 +1,3 @@
 **/__pycache__/
 .vscode/*
 wordlettercount/rds.py
-*.jar
