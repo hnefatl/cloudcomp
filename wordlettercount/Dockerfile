@@ -38,8 +38,10 @@ RUN curl -sL --retry 3 \
  && mv /usr/$SPARK_PACKAGE $SPARK_HOME \
  && chown -R root:root $SPARK_HOME \
  && cp $SPARK_HOME/kubernetes/dockerfiles/spark/entrypoint.sh /usr/entrypoint.sh
+WORKDIR $SPARK_HOME/work-dir
 
 # Python
+ENV PYTHONPATH ${SPARK_HOME}/python/lib/pyspark.zip:${SPARK_HOME}/python/lib/py4j-*.zip
 RUN apk add --no-cache python3 && \
     python3 -m ensurepip && \
     ln -s /usr/bin/python3 /usr/bin/python && \
@@ -47,15 +49,9 @@ RUN apk add --no-cache python3 && \
     # installed on the image and it just takes up 1.6MB on the image
     rm -r /usr/lib/python*/ensurepip && \
     pip3.6 install --upgrade pip setuptools && \
-    # You may install with python3 packages by using pip3.6
     # Removed the .cache to save space
     rm -r /root/.cache
 
-RUN pip3.6 install requests
-
 COPY wordlettercount.py $SPARK_HOME/work-dir/
 COPY *.jar $SPARK_HOME/jars/
-ENV PYTHONPATH ${SPARK_HOME}/python/lib/pyspark.zip:${SPARK_HOME}/python/lib/py4j-*.zip
-
-WORKDIR $SPARK_HOME/work-dir
 ENTRYPOINT [ "/usr/entrypoint.sh" ]
