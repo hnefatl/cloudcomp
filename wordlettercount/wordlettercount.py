@@ -21,7 +21,13 @@ def mapper(word):
 
 
 delims = [
+    # Not listed in the punctuation list given to us, but required to get correct answers.
     " ",
+    "\t",
+    "\r",
+    "\v",
+    "\f",
+    # Listed in the punctuation list on the Q/A
     ",",
     ".",
     ";",
@@ -45,7 +51,7 @@ def process(data):
     def process_categories(subdata):
         length = len(subdata)
         # Category boundaries. In the sample outputs, the ranges are inclusive on both sides.
-        # We subtract one from the lower bounds to produce the same behaviour.
+        # Have to subtract one from the lower bounds to get the same output
         popular_u = int(ceil(0.05 * length))
         common_l = int(floor(0.475 * length)) - 1
         common_u = int(ceil(0.525 * length))
