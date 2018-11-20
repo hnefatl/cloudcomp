@@ -61,15 +61,12 @@ def process(data):
         rare_l = int(floor(0.95 * length))
         print("Thresholds: ", popular_u, common_l, common_u, rare_l)
 
-        # TODO(kc506): Try generators instead of lists again
-        output = []
         for r in range(0, popular_u):
-            output.append((r + 1, subdata[r][0], "popular", subdata[r][1]))
+            yield (r + 1, subdata[r][0], "popular", subdata[r][1])
         for r in range(common_l, common_u):
-            output.append((r + 1, subdata[r][0], "common", subdata[r][1]))
+            yield (r + 1, subdata[r][0], "common", subdata[r][1])
         for r in range(rare_l, length):
-            output.append((r + 1, subdata[r][0], "rare", subdata[r][1]))
-        return output
+            yield (r + 1, subdata[r][0], "rare", subdata[r][1])
 
     return (process_categories(data["w"]), process_categories(data["l"]))
 
