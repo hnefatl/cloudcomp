@@ -3,7 +3,7 @@ FROM openjdk:8-alpine
 # Basic setup
 RUN set -ex && \
     apk upgrade --no-cache && \
-    apk add --no-cache bash curl tar tini libc6-compat linux-pam && \
+    apk add --no-cache bash curl tar tini libc6-compat linux-pam gcc musl-dev libffi-dev openssl-dev && \
     mkdir -p /opt/spark && \
     mkdir -p /opt/spark/work-dir && \
     touch /opt/spark/RELEASE && \
@@ -13,7 +13,7 @@ RUN set -ex && \
     chgrp root /etc/passwd && chmod ug+rw /etc/passwd
 
 # HADOOP
-ENV HADOOP_VERSION 3.0.0
+ENV HADOOP_VERSION 2.7.3
 ENV HADOOP_HOME /usr/hadoop-$HADOOP_VERSION
 ENV HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
 ENV PATH $PATH:$HADOOP_HOME/bin
@@ -42,7 +42,7 @@ WORKDIR $SPARK_HOME/work-dir
 
 # Python
 ENV PYTHONPATH ${SPARK_HOME}/python/lib/pyspark.zip:${SPARK_HOME}/python/lib/py4j-*.zip
-RUN apk add --no-cache python3 && \
+RUN apk add --no-cache python3 python3-dev && \
     python3 -m ensurepip && \
     ln -s /usr/bin/python3 /usr/bin/python && \
     # We remove ensurepip since it adds no functionality since pip is
@@ -51,6 +51,8 @@ RUN apk add --no-cache python3 && \
     pip3.6 install --upgrade pip setuptools && \
     # Removed the .cache to save space
     rm -r /root/.cache
+
+RUN pip3.6 install pymysql
 
 COPY wordlettercount.py $SPARK_HOME/work-dir/
 COPY *.jar $SPARK_HOME/jars/
