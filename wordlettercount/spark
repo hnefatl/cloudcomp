@@ -1,0 +1,78 @@
+#! /bin/bash
+set -ex
+
+function _init() {
+    MAIN_FILE=wordlettercount.py
+    mapfile -t AWS_CREDS < <(awk '/ = / {print $NF}' ~/.aws/credentials)
+    if [ ! -f rds.py ]; then
+        ln -s ../rds.py .
+    fi
+    ./resetdb
+}
+
+function _build() {
+    docker build . -t wordlettercount
+    docker tag wordlettercount:latest clgroup8/wordlettercount
+    docker push clgroup8/wordlettercount
+}
+
+function _kube_clean() {
+    kubectl delete po --all
+}
+
+function _kube() {
+    _init
+    _kube_clean
+    _build
+    KUBE_MASTER=$(kubectl cluster-info | grep "master" | grep -o 'https://[^"]*.com')
+
+    # Jars not needed on master because docker file puts them in imported folder (I think...)
+    spark-submit \
+        --master "k8s://$KUBE_MASTER" \
+        --deploy-mode cluster \
+        --name simpleapp \
+        --conf spark.executor.instances=2 \
+        --conf spark.kubernetes.pyspark.pythonVersion=3 \
+        --conf spark.kubernetes.container.image=docker.io/clgroup8/wordlettercount:latest \
+        --conf spark.kubernetes.container.image.pullPolicy=Always \
+        "file:///usr/spark-2.4.0/work-dir/$MAIN_FILE" \
+        "${AWS_CREDS[@]}" \
+        "group8.cqnxkff6jrcr.eu-west-1.rds.amazonaws.com" \
+        "3306" \
+        "foo" \
+        "1234567890" \
+        "kc506_rc691_CloudComputingCoursework" \
+        "s3a://kubernetes.group8.samples/sample-$1.txt"
+    ./showdb
+}
+
+function _local() {
+    _init
+    spark-submit \
+        --jars aws-java-sdk-1.7.4.jar,hadoop-aws-2.7.0.jar \
+        "$MAIN_FILE" \
+        "${AWS_CREDS[@]}" \
+        "group8.cqnxkff6jrcr.eu-west-1.rds.amazonaws.com" \
+        "3306" \
+        "foo" \
+        "1234567890" \
+        "kc506_rc691_CloudComputingCoursework" \
+        "s3a://kubernetes.group8.samples/sample-$1.txt"
+    ./showdb
+}
+
+case $1 in
+    kubernetes|k8s)
+        shift
+        _kube "$@"
+        ;;
+    local|l)
+        shift
+        _local "$@"
+        ;;
+    *)
+        echo "Usage: spark [kubernetes|local] INPUT-SAMPLE-ID"
+        echo "kubernetes - Launch in kubernetes"
+        echo "local - Launch locally"
+        exit 1
+esac

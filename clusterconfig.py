@@ -6,6 +6,11 @@ class ClusterConfig:
     def __init__(self):
         # Default values
         self.zone = "eu-west-1a"
+        self.vpc_id = "vpc-0ba327852e691da2b"
+        self.rds_host = "group8.cqnxkff6jrcr.eu-west-1.rds.amazonaws.com"
+        self.rds_port = 3306
+        self.rds_username = "foo"
+        self.rds_password = "1234567890"
         self.master_type = "c4.large"
         self.slave_type = "t2.small"
         self.init_master_count = 1
