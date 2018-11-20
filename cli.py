@@ -7,6 +7,7 @@ import random
 import tempfile
 import os
 import re
+import tabulate
 import time
 import json
 import pathlib
@@ -295,13 +296,15 @@ class Interface:
             password=self._config.rds_password,
             db=self._db_name,
         ) as connection, connection.cursor() as cursor:
-            # TODO(kc506): Improve output formatting
+            headers = ["Rank", "Word", "Category", "Frequency"]
+
             cursor.execute("SELECT * FROM words_spark")
             print("Words: ")
-            print(list(cursor.fetchall()))
+            print(tabulate.tabulate(cursor.fetchall(), headers=headers))
+
             cursor.execute("SELECT * FROM letters_spark")
             print("Letters: ")
-            print(list(cursor.fetchall()))
+            print(tabulate.tabulate(cursor.fetchall(), headers=headers))
 
     def _run(self, args, **kwargs):
         dry = ["echo"] if self._dry_run else []
