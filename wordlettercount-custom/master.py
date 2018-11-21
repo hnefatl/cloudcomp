@@ -4,9 +4,10 @@ import boto3
 import re
 
 
-# Splits an S3 url into a bucket name and file name
+# Splits an S3 url into a bucket name and file name, eg.
+# "s3a://group8.samples/foo/bar.txt" into ("group8.samples", "foo/bar.txt")
 def get_bucket_and_file(file_url):
-    # Two capture groups: first captures everything after the protocol until the first
+    # First capture group gets any characters after the protocol until the first
     # forward slash (the bucket name), second captures everything after the first
     # forward slash (the file path)
     match = re.match(r"s3a?://([^/]+)/(.+)", file_url)
@@ -15,6 +16,7 @@ def get_bucket_and_file(file_url):
     return (match.group(1), match.group(2))
 
 
+# Get the length of a given file in a given bucket in bytes
 def get_file_length(bucket, filename, region):
     s3 = boto3.client("s3", region_name=region)
     return s3.head_object(Bucket=bucket, Key=filename)["ContentLength"]
