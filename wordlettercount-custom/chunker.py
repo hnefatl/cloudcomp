@@ -20,18 +20,16 @@ def get_file_length(bucket, filename, region):
     return s3.head_object(Bucket=bucket, Key=filename)["ContentLength"]
 
 
-# Returns a list of [start, end] pairs indicating chunk start/end positions in bytes.
-# All indices x returned by this function satisfy 0 <= x < length.
-# Note the pairs are inclusive on both ends: we return eg. [(0,99),(100,199),...]
+# Returns a list of [start, end) pairs indicating chunk start/end positions in bytes.
+# All indices x returned by this function satisfy 0 <= x <= length.
 def get_chunk_indices(file_length, chunk_bytes, region):
     for i in range(0, file_length, chunk_bytes):
-        yield (i, min(file_length, i + chunk_bytes) - 1)
+        yield (i, min(file_length, i + chunk_bytes))
 
 
 # Returns the bytes in the given range of the remote file as a UTF-8 decoded string
 def download_chunk(bucket, filename, chunk_range, region):
     s3 = boto3.client("s3", region_name=region)
-    response = s3.get_object(
-        Bucket=bucket, Key=filename, Range=f"bytes={chunk_range[0]}-{chunk_range[1]}"
-    )
-    return response["Body"].read().decode()
+    range_string = f"bytes={chunk_range[0]}-{chunk_range[1] - 1}" # Inclusive upper bound
+    resp = s3.get_object(Bucket=bucket, Key=filename, Range=range_string)
+    return resp["Body"].read().decode()
