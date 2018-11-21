@@ -23,10 +23,9 @@ def get_file_length(bucket, filename, region):
 # Returns a list of [start, end] pairs indicating chunk start/end positions in bytes.
 # All indices x returned by this function satisfy 0 <= x < length.
 # Note the pairs are inclusive on both ends: we return eg. [(0,99),(100,199),...]
-def get_chunk_indices(bucket, filename, chunk_bytes, region):
-    length = get_file_length(bucket, filename, region)
-    for i in range(0, length, chunk_bytes):
-        yield (i, min(length, i + chunk_bytes) - 1)
+def get_chunk_indices(file_length, chunk_bytes, region):
+    for i in range(0, file_length, chunk_bytes):
+        yield (i, min(file_length, i + chunk_bytes) - 1)
 
 
 # Returns the bytes in the given range of the remote file as a UTF-8 decoded string
