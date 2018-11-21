@@ -36,6 +36,7 @@ class Interface:
             "21": self.validate_cluster,
             "22": self.deploy_dashboard,
             "23": self.access_dashboard,
+            "24": self.validate_cluster_wait,
             "3": self.view_cluster,
             "31": self.get_admin_password,
             "32": self.get_admin_service_token,
@@ -74,6 +75,7 @@ class Interface:
         print("    21: Validate the cluster")
         print("    22: Deploy the Kubernetes web dashboard")
         print("    23: Access the Kubernetes web dashboard")
+        print("    24: Wait for the cluster to be valid")
         print("3: View the cluster")
         print("    31: Get the admin password")
         print("    32: Get the admin service account token")
@@ -186,6 +188,15 @@ class Interface:
         self._run_kops(
             ["validate", "cluster", self._config.cluster_name]
         ).check_returncode()
+
+    def validate_cluster_wait(self):
+        # Loop until the cluster is successfully validated
+        while True:
+            try:
+                self.validate_cluster()
+                return
+            except subprocess.CalledProcessError:
+                time.sleep(1)
 
     def view_cluster(self):
         if not self._cluster_started:

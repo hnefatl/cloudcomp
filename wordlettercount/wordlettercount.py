@@ -5,6 +5,7 @@ import sys
 import os
 import pyspark
 import pymysql
+import time
 from math import ceil, floor
 import re
 
@@ -122,6 +123,7 @@ if __name__ == "__main__":
     sc._jsc.hadoopConfiguration().set("fs.s3a.access.key", access_key)
     sc._jsc.hadoopConfiguration().set("fs.s3a.secret.key", secret_key)
 
+    start_time_s = time.monotonic()
     text_file = sc.textFile(input_url)
 
     results = (
@@ -148,3 +150,5 @@ if __name__ == "__main__":
         password=db_pass,
         data=results,
     )
+    end_time_s = time.monotonic()
+    print(f"Took {end_time_s - start_time_s}s")
