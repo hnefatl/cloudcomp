@@ -21,30 +21,7 @@ def mapper(word):
     return wordlist + [((letter, "l"), 1) for letter in wl if is_ascii_alpha(letter)]
 
 
-delims = [
-    # Not listed in the punctuation list given to us, but required to get correct answers.
-    " ",
-    "\t",
-    "\r",
-    "\v",
-    "\f",
-    # Listed in the punctuation list on the Q/A
-    ",",
-    ".",
-    ";",
-    ":",
-    "?",
-    "!",
-    '"',
-    "(",
-    ")",
-    "[",
-    "]",
-    "{",
-    "}",
-    "-",
-    "_",
-]
+delims = list(" \t\r\v\f,.;:?!\"()[]{}-_")
 re_split = re.compile(r"|".join(map(re.escape, delims)))
 
 
