@@ -34,13 +34,12 @@ def main():
             "Usage: mapper <input file url> <output directory url> <chunk start byte> <chunk end byte> <ranges>\n"
             + 'where ranges is a comma-separated list of ranges, eg. "a-d,e-g,h-w,x-z" and the start/end bytes are inclusive/exclusive respectively.'
         )
-    input_file_url = sys.argv[1]
-    output_directory_url = sys.argv[2]
+    src_bucket, src_filename = s3helper.get_bucket_and_file(sys.argv[1])
+    dst_bucket, dst_directory = s3helper.get_bucket_and_file(sys.argv[2])
     chunk_range = (int(sys.argv[3]), int(sys.argv[4]))
     ranges = sys.argv[5].split(",")
 
-    bucket, filename = s3helper.get_bucket_and_file(input_file_url)
-    file_contents = s3helper.download_chunk(bucket, filename, chunk_range)
+    file_contents = s3helper.download_chunk(src_bucket, src_filename, chunk_range)
     output = {"word": [], "letter": []}
     for token in re_split.split(file_contents):
         mapper(token, output)
@@ -55,7 +54,11 @@ def main():
             },
             separators=[",", ":"],  # Remove whitespace
         )
-        s3helper.upload_file(bucket, f"{output_directory_url}/{r}", data.encode())
+        s3helper.upload_file(dst_bucket, f"{dst_directory}/{r}", data.encode())
+
+    print(f"{len(file_contents.encode())} bytes")
+    print(f'{len(output["word"])} words')
+    print(f'{len(output["letter"])} letters')
 
 
 if __name__ == "__main__":
