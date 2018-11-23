@@ -1,0 +1,62 @@
+import collections
+import s3helper
+import sys
+import re
+import json
+import itertools
+
+
+delims = list(' \t\r\v\f,.;:?!"()[]{}-_')
+re_split = re.compile(r"|".join(map(re.escape, delims)))
+
+
+def flatFilter(f, iter):
+    return itertools.chain(filter(f, iter))
+
+
+def is_ascii_alpha(word):
+    # string isalpha method allows unicode, which we don't want
+    return all(c >= "a" and c <= "z" for c in word)
+
+
+def mapper(word, output):
+    wl = word.lower()
+    if is_ascii_alpha(wl) and len(wl) > 0:
+        output["word"].append((wl, 1))
+    for letter in wl:
+        if is_ascii_alpha(letter):
+            output["letter"].append((letter, 1))
+
+
+def main():
+    if len(sys.argv) != 6:
+        raise RuntimeError(
+            "Usage: mapper <input file url> <output directory url> <chunk start byte> <chunk end byte> <ranges>\n"
+            + 'where ranges is a comma-separated list of ranges, eg. "a-d,e-g,h-w,x-z" and the start/end bytes are inclusive/exclusive respectively.'
+        )
+    input_file_url = sys.argv[1]
+    output_directory_url = sys.argv[2]
+    chunk_range = (int(sys.argv[3]), int(sys.argv[4]))
+    ranges = sys.argv[5].split(",")
+
+    bucket, filename = s3helper.get_bucket_and_file(input_file_url)
+    file_contents = s3helper.download_chunk(bucket, filename, chunk_range)
+    output = {"word": [], "letter": []}
+    for token in re_split.split(file_contents):
+        mapper(token, output)
+
+    for r in ranges:
+        start, end = r.split("-")
+        lrange = {chr(c) for c in range(ord(start), ord(end) + 1)}
+        data = json.dumps(
+            {
+                "word": list(flatFilter(lambda x: x[0][0] in lrange, output["word"])),
+                "letter": list(flatFilter(lambda x: x[0] in lrange, output["letter"])),
+            },
+            separators=[",", ":"],  # Remove whitespace
+        )
+        s3helper.upload_file(bucket, f"{output_directory_url}/{r}", data.encode())
+
+
+if __name__ == "__main__":
+    main()
