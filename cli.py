@@ -289,6 +289,10 @@ class Interface:
                 "spark.kubernetes.container.image=docker.io/clgroup8/wordlettercount:latest",
                 "--conf",
                 "spark.kubernetes.container.image.pullPolicy=Always",
+                "--conf",
+                "spark.driver.cores=0.6",
+                "--conf",
+                "spark.kubernetes.executor.request.cores=0.6",
                 # Script to run
                 "file:///usr/spark-2.4.0/work-dir/wordlettercount.py",
                 # Arguments to the script
