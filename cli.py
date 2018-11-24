@@ -20,7 +20,13 @@ class Interface:
         self._config = clusterconfig.ClusterConfig()
         self._aws_access_key = aws_access_key
         self._aws_secret_key = aws_secret_key
-        self._db_name = "kc506_rc691_CloudComputingCoursework"
+        self._rds_host = None
+        self._rds_port = None
+        self._vpc_id = None
+        self._rds_instance_id = "group8"
+        self._rds_username = "foo"
+        self._rds_password = "hkXxep0A4^JZ1!H"
+        self._rds_db_name = "kc506_rc691_CloudComputingCoursework"
         self._running = True
         self._dry_run = False
         self._cluster_started = False
@@ -44,6 +50,7 @@ class Interface:
             "5": self.run_spark_app,
             "51": self.view_spark_app,
             "52": self.view_spark_app_output,
+            "7": self.delete_rds_instance,
             "c": lambda: subprocess.check_call("clear"),
         }
 
@@ -58,6 +65,7 @@ class Interface:
             print(f"Leaving cluster running on {self._s3_bucket_path}")
 
     def run(self):
+        self._get_or_create_rds_instance()
         while self._running:
             self.show_menu()
             action = self.get_action()
@@ -83,6 +91,7 @@ class Interface:
         print("5: Run Spark WordLetterCount App")
         print("    51: View Spark App")
         print("    52: Show Output")
+        print("7: Delete RDS instance")
 
     def get_action(self):
         try:
@@ -128,14 +137,16 @@ class Interface:
         self._run_aws(
             ["s3", "mb", self._s3_bucket_path, "--region", self._config.region]
         ).check_returncode()
-        print(f"Creating cluster: {self._config.cluster_name} in {self._config.zone}")
+        print(
+            f"Creating cluster: {self._config.cluster_name} in {self._config.kubernetes_zones}"
+        )
         self._run_kops(
             [
                 "create",
                 "cluster",
                 self._config.cluster_name,
                 "--zones",
-                self._config.zone,
+                self._config.kubernetes_zones,
                 "--authorization",
                 "AlwaysAllow",
                 "--master-count",
@@ -147,7 +158,7 @@ class Interface:
                 "--node-count",
                 str(self._config.slave_count),
                 "--vpc",
-                self._config.vpc_id,
+                self._vpc_id,
                 "--yes",
             ]
         ).check_returncode()
@@ -261,11 +272,11 @@ class Interface:
 
         print("Resetting database tables")
         rds.initialise_instance(
-            host=self._config.rds_host,
-            port=self._config.rds_port,
-            db_name=self._db_name,
-            username=self._config.rds_username,
-            password=self._config.rds_password,
+            host=self._rds_host,
+            port=self._rds_port,
+            db_name=self._rds_db_name,
+            username=self._rds_username,
+            password=self._rds_password,
         )
         master_endpoint = self._get_master_endpoint()
         print(f"Master endpoint: {master_endpoint}")
@@ -298,11 +309,11 @@ class Interface:
                 # Arguments to the script
                 self._aws_access_key,
                 self._aws_secret_key,
-                self._config.rds_host,
-                str(self._config.rds_port),
-                self._config.rds_username,
-                self._config.rds_password,
-                self._db_name,
+                self._rds_host,
+                str(self._rds_port),
+                self._rds_username,
+                self._rds_password,
+                self._rds_db_name,
                 input_url,
             ]
         )
@@ -315,12 +326,16 @@ class Interface:
 
     def view_spark_app_output(self):
         rds.show_db_contents(
-            self._config.rds_host,
-            self._config.rds_port,
-            self._db_name,
-            self._config.rds_username,
-            self._config.rds_password,
+            self._rds_host,
+            self._rds_port,
+            self._rds_db_name,
+            self._rds_username,
+            self._rds_password,
         )
+
+    def delete_rds_instance(self):
+        print("Deleting RDS instance (may take a while)")
+        rds.delete_entire_rds_instance(self._config.region, self._rds_instance_id)
 
     def _run(self, args, **kwargs):
         dry = ["echo"] if self._dry_run else []
@@ -334,6 +349,32 @@ class Interface:
 
     def _run_kubectl(self, args, **kwargs):
         return self._run(["kubectl"] + args, **kwargs)
+
+    def _get_or_create_rds_instance(self):
+        instance_info = None
+        try:
+            instance_info = rds.get_instance_endpoint(
+                self._config.region, self._rds_instance_id
+            )
+        except RuntimeError:
+            print("Creating RDS instance (may take a while)")
+            rds.create_entire_rds_instance(
+                self._config.region,
+                self._rds_instance_id,
+                self._rds_username,
+                self._rds_password,
+            )
+            instance_info = rds.get_instance_endpoint(
+                self._config.region, self._rds_instance_id
+            )
+        if instance_info is None:
+            raise RuntimeError("Failed to create instance")
+        self._rds_host = instance_info["host"]
+        self._rds_port = instance_info["port"]
+        self._vpc_id = instance_info["vpc_id"]
+        print(
+            f"Found RDS instance {self._rds_instance_id} in VPC {self._vpc_id} on {self._rds_host}:{self._rds_port}"
+        )
 
     def _get_master_endpoint(self):
         output = self._run_kubectl(

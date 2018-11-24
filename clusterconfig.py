@@ -6,12 +6,7 @@ class ClusterConfig:
     def __init__(self):
         # Default values
         self.region = "eu-west-1"
-        self.zone = "eu-west-1a"
-        self.vpc_id = "vpc-0ba327852e691da2b"
-        self.rds_host = "group8.cqnxkff6jrcr.eu-west-1.rds.amazonaws.com"
-        self.rds_port = 3306
-        self.rds_username = "foo"
-        self.rds_password = "1234567890"
+        self.kubernetes_zones = "eu-west-1a"
         self.master_type = "c4.large"
         self.slave_type = "t2.small"
         self.master_count = 1

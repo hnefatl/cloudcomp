@@ -4,6 +4,57 @@ import tabulate
 import contextlib
 
 
+def delete_entire_rds_instance(region, instance_id):
+    ec2 = boto3.resource("ec2", region_name=region)
+    rds = boto3.client("rds", region_name=region)
+    # Delete instance, wait for deletion
+    resp = rds.delete_db_instance(
+        DBInstanceIdentifier=instance_id, SkipFinalSnapshot=True
+    )
+    rds.get_waiter("db_instance_deleted").wait(DBInstanceIdentifier=instance_id)
+    subnet_group = resp["DBInstance"]["DBSubnetGroup"]
+
+    subnet_group_name = subnet_group["DBSubnetGroupName"]
+    vpc_id = subnet_group["VpcId"]
+    rds.delete_db_subnet_group(DBSubnetGroupName=subnet_group_name)
+    # Deleting a VPC is a bitch
+    vpc = ec2.Vpc(vpc_id)
+    for subnet in vpc.subnets.all():
+        subnet.delete()
+    for ig in vpc.internet_gateways.all():
+        ig.detach_from_vpc(VpcId=vpc_id)
+        ig.delete()
+    for rt in vpc.route_tables.all():
+        for rta in rt.associations:
+            if not rta.main:
+                rta.delete()
+    for sg in vpc.security_groups.all():
+        if sg.group_name != "default":
+            sg.delete()
+    vpc.delete()
+
+
+# Create a vpc, subnets, subnet group, and RDS instance
+def create_entire_rds_instance(region, instance_id, username, password):
+    availability_zones = get_availability_zones(region)
+    # Create a VPC with subnets for each availability zone in the region
+    vpc_id = create_vpc(region, availability_zones)
+
+    # Create a subnet group containing all the subnets
+    subnet_group_name = f"{instance_id}.subnetgroup"
+    create_subnet_group(region, vpc_id, subnet_group_name)
+
+    # Create the instance
+    create_instance(region, vpc_id, subnet_group_name, instance_id, username, password)
+
+
+# Return the names of all availability zones in a region
+def get_availability_zones(region):
+    ec2 = boto3.client("ec2", region_name=region)
+    zones = ec2.describe_availability_zones()["AvailabilityZones"]
+    return [zone["ZoneName"] for zone in zones if zone["RegionName"] == region]
+
+
 # Creates a vpc with all the required gadgets, with subnets in each of the given availability zones.
 # Deleting a vpc and all the created resources should be done from the VPC section of the AWS console.
 def create_vpc(region, availability_zones):
@@ -84,16 +135,25 @@ def create_instance(region, vpc_id, subnet_group_name, instance_id, username, pa
         PubliclyAccessible=True,
     )
 
+    rds.get_waiter("db_instance_available").wait(DBInstanceIdentifier=instance_id)
+
 
 # Get the instance endpoint information
 def get_instance_endpoint(region, instance_id):
     rds = boto3.client("rds", region_name=region)
-    instances = rds.describe_db_instances(DBInstanceIdentifier=instance_id)[
-        "DBInstances"
-    ]
-    for instance in instances:
-        if instance_id == instance["DBInstanceIdentifier"]:
-            return (instance["Endpoint"]["Address"], instance["Endpoint"]["Port"])
+    try:
+        instances = rds.describe_db_instances(DBInstanceIdentifier=instance_id)[
+            "DBInstances"
+        ]
+        for instance in instances:
+            if instance_id == instance["DBInstanceIdentifier"]:
+                return {
+                    "host": instance["Endpoint"]["Address"],
+                    "port": instance["Endpoint"]["Port"],
+                    "vpc_id": instance["DBSubnetGroup"]["VpcId"],
+                }
+    except Exception:
+        pass
     raise RuntimeError("No instance found")
 
 
