@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.7
 
 import boto3
+import s3helper
 import subprocess
 import string
 import random
@@ -137,6 +138,10 @@ class Interface:
         self._run_aws(
             ["s3", "mb", self._s3_bucket_path, "--region", self._config.region]
         ).check_returncode()
+        print("Uploading cluster settings to bucket")
+        s3helper.upload_file(
+            self._s3_bucket_path, "config.json", self._config.json_show().encode()
+        )
         print(
             f"Creating cluster: {self._config.cluster_name} in {self._config.kubernetes_zones}"
         )
@@ -190,6 +195,10 @@ class Interface:
         if not self._s3_bucket_path.startswith("s3://"):
             self._s3_bucket_path = "s3://" + self._s3_bucket_path
         self._cluster_started = True
+        print("Downloading cluster config")
+        self._config.json_load(
+            s3helper.download_file(self._s3_bucket_path, "config.json").decode()
+        )
 
     def validate_cluster(self):
         if not self._cluster_started:
@@ -267,8 +276,8 @@ class Interface:
 
     def run_spark_app(self):
         if not self._cluster_started:
-           print("Cluster not started")
-           return
+            print("Cluster not started")
+            return
 
         input_url = input(
             "Enter s3 url to the input file (eg. s3a://kubernetes.group8/input.txt): "
