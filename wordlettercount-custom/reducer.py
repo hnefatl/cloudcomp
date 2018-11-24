@@ -35,7 +35,7 @@ def main():
             + "where the input file urls are a comma separated list of s3:// urls and the output url is a s3:// url."
         )
     input_urls = sys.argv[1].split(",")
-    out_bucket = sys.argv[2][5:]
+    out_bucket = s3helper.get_bucket_from_s3_url(sys.argv[2])
     out_file = os.environ["JOB_ID"]
 
     inputs = [get_json(url) for url in input_urls]

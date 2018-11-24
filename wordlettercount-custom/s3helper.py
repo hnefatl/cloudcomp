@@ -3,6 +3,14 @@ import re
 from smart_open import smart_open
 
 
+# Splits an S3 url into the bucket name, discarding the protocol and the file name
+def get_bucket_from_s3_url(url):
+    match = re.match(r"s3a?://([^/]+).*", url)
+    if match is None:
+        raise RuntimeError(f"Invalid s3 url: {url}")
+    return match.group(1)
+
+
 # Splits an S3 url into a bucket name and file name, eg.
 # "s3a://group8.samples/foo/bar.txt" into ("group8.samples", "foo/bar.txt")
 def get_bucket_and_file(file_url):
@@ -53,3 +61,10 @@ def get_chunks(file_url, ideal_chunk_size):
             range_start = range_end
     if range_end > range_start:
         yield (range_start, range_end)
+
+
+def delete_bucket(bucket_url):
+    bucket_name = get_bucket_from_s3_url(bucket_url)
+    bucket = boto3.resource("s3").Bucket(bucket_name)
+    bucket.objects.all().delete()
+    bucket.delete()

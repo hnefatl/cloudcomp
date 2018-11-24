@@ -50,17 +50,19 @@ def main():
 
     kube = authenticate_kubernetes()
     bucket_id = "".join(random.choices(string.ascii_lowercase, k=5))
-    bucket = "s3://group8.wlcc.{}".format(bucket_id)
+    bucket_url = f"s3://group8.wlcc.{bucket_id}"
+    bucket_name = s3helper.get_bucket_from_s3_url(bucket_url)
 
     # Create bucket
     client = boto3.client("s3")
     client.create_bucket(
-        Bucket=bucket[5:], CreateBucketConfiguration={"LocationConstraint": "EU"}
+        # TODO(kc506): Change to region
+        Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": "EU"}
     )
 
     mr = MapReduce(bucket_id, kube, RANGES, MAPPER_IMAGE, REDUCER_IMAGE)
     for (c1, c2) in s3helper.get_chunks(input_url, chunk_size):
-        mr.start_mapper(input_url, bucket, str(c1), str(c2), ",".join(RANGES))
+        mr.start_mapper(input_url, bucket_url, str(c1), str(c2), ",".join(RANGES))
     work_done = False
     state = 0
 
@@ -89,10 +91,10 @@ def main():
                 mr.start_reducer(
                     tag,
                     ",".join(
-                        get_s3_url(bucket, mapper.metadata.name, tag)
+                        get_s3_url(bucket_url, mapper.metadata.name, tag)
                         for mapper in to_reduce
                     ),
-                    bucket,
+                    bucket_url,
                 )
                 work_done = True
 
@@ -111,17 +113,18 @@ def main():
                 mr.start_reducer(
                     tag,
                     ",".join(
-                        get_s3_url(bucket, reducer.metadata.name, "")
+                        get_s3_url(bucket_url, reducer.metadata.name, "")
                         for reducer in to_reduce
                     ),
-                    bucket,
+                    bucket_url,
                 )
                 work_done = True
         time.sleep(EVENT_LOOP_UPDATE_INTERVAL)
 
-    # s3_bucket = boto3.resource("s3").Bucket(bucket[5:])
-    # s3_bucket.objects.all().delete()
-    # s3_bucket.delete()
+    # TODO(kc506): Write to RDS
+
+    # Delete output bucket
+    s3helper.delete_bucket(bucket_url)
 
 
 if __name__ == "__main__":

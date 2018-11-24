@@ -35,7 +35,7 @@ def main():
             + 'where ranges is a comma-separated list of ranges, eg. "a-d,e-g,h-w,x-z" and the start/end bytes are inclusive/exclusive respectively.'
         )
     src_bucket, src_filename = s3helper.get_bucket_and_file(sys.argv[1])
-    dst_bucket = sys.argv[2][5:]
+    dst_bucket = s3helper.get_bucket_from_s3_url(sys.argv[2])
     print(dst_bucket)
     dst_directory = os.environ["JOB_ID"]
     chunk_range = (int(sys.argv[3]), int(sys.argv[4]))
