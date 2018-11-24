@@ -1,0 +1,9 @@
+#! /bin/bash
+
+function _docker_build() {
+    docker build -f "$1/Dockerfile" . -t "$1"
+    docker tag "$1:latest" "clgroup8/$1:latest"
+    docker push "clgroup8/$1"
+}
+
+_docker_build "$1"

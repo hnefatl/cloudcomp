@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 from kubernetes import client
+import os
 
 
 # Factory for starting Kubernetes jobs
@@ -13,14 +14,31 @@ class JobFactory:
         self._image = image
         # Initialise a template kubernetes job
 
-    def _create_job(self, name):
+    def _create_job(self, name, *args):
         return client.V1Job(
             metadata=client.V1ObjectMeta(name=name),
             spec=client.V1JobSpec(
                 template=client.V1PodTemplateSpec(
                     spec=client.V1PodSpec(
                         restart_policy="OnFailure",
-                        containers=[client.V1Container(image=self._image, name=name)],
+                        containers=[
+                            client.V1Container(
+                                image=self._image,
+                                name=name,
+                                env=[
+                                    client.V1EnvVar(
+                                        name="AWS_ACCESS_KEY_ID",
+                                        value=os.environ["AWS_ACCESS_KEY_ID"],
+                                    ),
+                                    client.V1EnvVar(
+                                        name="AWS_SECRET_ACCESS_KEY",
+                                        value=os.environ["AWS_SECRET_ACCESS_KEY"],
+                                    ),
+                                    client.V1EnvVar(name="JOB_ID", value=name)
+                                ],
+                                args=args,
+                            )
+                        ],
                     )
                 )
             ),
@@ -30,7 +48,9 @@ class JobFactory:
         job_id = JobFactory.next_id
         JobFactory.next_id += 1
         job_name = f"{id_prefix}-{job_id}"
-        return self._client.create_namespaced_job("default", self._create_job(job_name))
+        return self._client.create_namespaced_job(
+            "default", self._create_job(job_name, *args)
+        )
 
 
 class JobList:
@@ -39,7 +59,7 @@ class JobList:
         self.completed = completed
 
     def __str__(self):
-        return f"JobList({len(self.running)}, {len(self.completed))})"
+        return f"JobList({len(self.running)}, {len(self.completed)})"
 
     def __repr__(self):
         return self.__str__()

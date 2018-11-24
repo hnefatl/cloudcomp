@@ -25,7 +25,9 @@ def get_file_length(bucket, filename):
 def download_chunk(bucket, filename, chunk_range):
     s3 = boto3.client("s3")
     chunk_start, chunk_end = chunk_range
-    range_string = f"bytes={chunk_start}-{chunk_end - 1}"  # Expects inclusive upper bound
+    range_string = (
+        f"bytes={chunk_start}-{chunk_end - 1}"
+    )  # Expects inclusive upper bound
     resp = s3.get_object(Bucket=bucket, Key=filename, Range=range_string)
     return resp["Body"].read().decode()
 

@@ -6,19 +6,15 @@ import random
 import time
 import string
 from mapreduce import MapReduce
+import s3helper
+import boto3
 
-MAPPER_IMAGE = "clgroup8/test:latest"
-REDUCER_IMAGE = "clgroup8/test:latest"
+MAPPER_IMAGE = "clgroup8/mapper:latest"
+REDUCER_IMAGE = "clgroup8/reducer:latest"
 RANGES = ["a-l", "m-z"]
 NUM_MAPPERS_TO_REDUCERS = len(RANGES)
 NUM_REDUCERS_TO_REDUCERS = len(RANGES)
 EVENT_LOOP_UPDATE_INTERVAL = 1
-
-
-# Splits a list of urls into chunks
-# TODO(rc691): Replace with kc506 implementation
-def get_chunks(url):
-    return ["a", "b", "c", "d"]
 
 
 # Authenticates with kubernetes and returns a new client
@@ -36,32 +32,44 @@ def take_at_most_n(l, n):
 
 
 def get_s3_url(bucket, job, tag):
-    return f"{bucket}/{job}/{tag}"
+    if tag == "":
+        return f"{bucket}/{job}"
+    else:
+        return f"{bucket}/{job}/{tag}"
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: master.py <input-url>")
+    if len(sys.argv) not in [2, 3]:
+        print("Usage: master.py <input-url> [chunk-size]")
         sys.exit(1)
 
+    input_url = sys.argv[1]
+    chunk_size = 100
+    if len(sys.argv) == 3:
+        chunk_size = int(sys.argv[2])
+
     kube = authenticate_kubernetes()
-    # TODO(rc691): Create an actual S3 bucket
     bucket_id = "".join(random.choices(string.ascii_lowercase, k=5))
     bucket = "s3://group8.wlcc.{}".format(bucket_id)
 
+    # Create bucket
+    client = boto3.client("s3")
+    client.create_bucket(
+        Bucket=bucket[5:], CreateBucketConfiguration={"LocationConstraint": "EU"}
+    )
+
     mr = MapReduce(bucket_id, kube, RANGES, MAPPER_IMAGE, REDUCER_IMAGE)
-    for chunk in get_chunks(sys.argv[1]):
-        mr.start_mapper(chunk)  # TODO: modify to pass actual parameters
-    state_updated = True
+    for (c1, c2) in s3helper.get_chunks(input_url, chunk_size):
+        mr.start_mapper(input_url, bucket, str(c1), str(c2), ",".join(RANGES))
     work_done = False
     state = 0
 
     # Event loop updates state and looks for possible reduction
     # Terminates when state isn't changed, no reducers are started
     # and there are no running jobs.
-    while state_updated or work_done or mr.is_active():
+    while work_done or mr.is_active():
         work_done = False
-        state_updated = mr.update_state()
+        mr.update_state()
         print("State", state, "-", mr.mappers, mr.reducers)
         state += 1
         # Reduce mappers before other reducers
@@ -80,7 +88,11 @@ def main():
             for tag in RANGES:
                 mr.start_reducer(
                     tag,
-                    ",".join(get_s3_url(bucket, mapper, tag) for mapper in to_reduce),
+                    ",".join(
+                        get_s3_url(bucket, mapper.metadata.name, tag)
+                        for mapper in to_reduce
+                    ),
+                    bucket,
                 )
                 work_done = True
 
@@ -98,10 +110,18 @@ def main():
                 mr.reducers[tag].completed = remaining
                 mr.start_reducer(
                     tag,
-                    ",".join(get_s3_url(bucket, reducer, tag) for reducer in to_reduce),
+                    ",".join(
+                        get_s3_url(bucket, reducer.metadata.name, "")
+                        for reducer in to_reduce
+                    ),
+                    bucket,
                 )
                 work_done = True
         time.sleep(EVENT_LOOP_UPDATE_INTERVAL)
+
+    # s3_bucket = boto3.resource("s3").Bucket(bucket[5:])
+    # s3_bucket.objects.all().delete()
+    # s3_bucket.delete()
 
 
 if __name__ == "__main__":

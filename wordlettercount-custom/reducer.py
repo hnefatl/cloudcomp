@@ -1,7 +1,7 @@
 import collections
 import s3helper
 import sys
-import string
+import os
 import json
 
 
@@ -31,18 +31,20 @@ def merge(inputs):
 def main():
     if len(sys.argv) != 3:
         raise RuntimeError(
-            "Usage: reducer <input file urls> <output file url>\n"
+            "Usage: reducer <input file urls> <output bucket url>\n"
             + "where the input file urls are a comma separated list of s3:// urls and the output url is a s3:// url."
         )
     input_urls = sys.argv[1].split(",")
-    output_url = sys.argv[2]
+    out_bucket = sys.argv[2][5:]
+    out_file = os.environ["JOB_ID"]
 
     inputs = [get_json(url) for url in input_urls]
     outputs = merge(inputs)
     json_output = json.dumps(outputs)
 
-    out_bucket, out_file = s3helper.get_bucket_and_file(output_url)
-    s3helper.upload_file(bucket=out_bucket, filename=out_file, data_bytes=json_output.encode())
+    s3helper.upload_file(
+        bucket=out_bucket, filename=out_file, data_bytes=json_output.encode()
+    )
 
 
 if __name__ == "__main__":

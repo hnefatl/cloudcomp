@@ -1,9 +1,9 @@
-import collections
 import s3helper
 import sys
 import re
 import json
 import itertools
+import os
 
 
 delims = list(' \t\r\v\f,.;:?!"()[]{}-_')
@@ -31,11 +31,13 @@ def mapper(word, output):
 def main():
     if len(sys.argv) != 6:
         raise RuntimeError(
-            "Usage: mapper <input file url> <output directory url> <chunk start byte> <chunk end byte> <ranges>\n"
+            "Usage: mapper <input file url> <output bucket url> <chunk start byte> <chunk end byte> <ranges>\n"
             + 'where ranges is a comma-separated list of ranges, eg. "a-d,e-g,h-w,x-z" and the start/end bytes are inclusive/exclusive respectively.'
         )
     src_bucket, src_filename = s3helper.get_bucket_and_file(sys.argv[1])
-    dst_bucket, dst_directory = s3helper.get_bucket_and_file(sys.argv[2])
+    dst_bucket = sys.argv[2][5:]
+    print(dst_bucket)
+    dst_directory = os.environ["JOB_ID"]
     chunk_range = (int(sys.argv[3]), int(sys.argv[4]))
     ranges = sys.argv[5].split(",")
 
