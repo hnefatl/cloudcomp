@@ -29,7 +29,7 @@ class JobFactory:
     def new_job(self, id_prefix, *args):
         job_id = JobFactory.next_id
         JobFactory.next_id += 1
-        job_name = "{}-{}".format(id_prefix, job_id)
+        job_name = f"{id_prefix}-{job_id}"
         return self._client.create_namespaced_job("default", self._create_job(job_name))
 
 
@@ -39,7 +39,7 @@ class JobList:
         self.completed = completed
 
     def __str__(self):
-        return "JobList({}, {})".format(len(self.running), len(self.completed))
+        return f"JobList({len(self.running)}, {len(self.completed))})"
 
     def __repr__(self):
         return self.__str__()
@@ -57,18 +57,17 @@ class MapReduce:
         self.reducers = {tag: JobList([], []) for tag in ranges}
 
     def start_mapper(self, *args):
-        mapper = self._mapper_factory.new_job("mapper-{}".format(self._id), *args)
+        mapper = self._mapper_factory.new_job(f"mapper-{self._id}", *args)
         self.mappers.running.append(mapper)
 
     def start_reducer(self, tag, *args):
         assert tag in self.ranges
-        reducer = self._reducer_factory.new_job("reducer-{}".format(self._id), *args)
+        reducer = self._reducer_factory.new_job(f"reducer-{self._id}", *args)
         self.reducers[tag].running.append(reducer)
 
     @staticmethod
     def _partition(l, f):
-        a = []
-        b = []
+        a, b = ([], [])
         for item in l:
             if f(item):
                 a.append(item)
@@ -78,15 +77,13 @@ class MapReduce:
 
     def update_state(self):
         # Get names of all successful jobs from Kubernetes
-        job_list = set(
-            [
-                job.metadata.name
-                for job in self._client.list_namespaced_job("default").items
-                if job.status is not None
-                and job.status.succeeded is not None
-                and job.status.succeeded > 0
-            ]
-        )
+        job_list = {
+            job.metadata.name
+            for job in self._client.list_namespaced_job("default").items
+            if job.status is not None
+            and job.status.succeeded is not None
+            and job.status.succeeded > 0
+        }
 
         # partition running mappers on inclusion in job_list
         completed, running = MapReduce._partition(

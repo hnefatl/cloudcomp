@@ -36,7 +36,7 @@ def take_at_most_n(l, n):
 
 
 def get_s3_url(bucket, job, tag):
-    return "{}/{}/{}".format(bucket, job, tag)
+    return f"{bucket}/{job}/{tag}"
 
 
 def main():
@@ -80,7 +80,7 @@ def main():
             for tag in RANGES:
                 mr.start_reducer(
                     tag,
-                    ",".join([get_s3_url(bucket, mapper, tag) for mapper in to_reduce]),
+                    ",".join(get_s3_url(bucket, mapper, tag) for mapper in to_reduce),
                 )
                 work_done = True
 
@@ -98,9 +98,7 @@ def main():
                 mr.reducers[tag].completed = remaining
                 mr.start_reducer(
                     tag,
-                    ",".join(
-                        [get_s3_url(bucket, reducer, tag) for reducer in to_reduce]
-                    ),
+                    ",".join(get_s3_url(bucket, reducer, tag) for reducer in to_reduce),
                 )
                 work_done = True
         time.sleep(EVENT_LOOP_UPDATE_INTERVAL)
