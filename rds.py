@@ -19,8 +19,6 @@ def delete_entire_rds_instance(region, instance_id):
     rds.delete_db_subnet_group(DBSubnetGroupName=subnet_group_name)
     # Deleting a VPC is a bitch
     vpc = ec2.Vpc(vpc_id)
-    for subnet in vpc.subnets.all():
-        subnet.delete()
     for ig in vpc.internet_gateways.all():
         ig.detach_from_vpc(VpcId=vpc_id)
         ig.delete()
@@ -31,6 +29,10 @@ def delete_entire_rds_instance(region, instance_id):
     for sg in vpc.security_groups.all():
         if sg.group_name != "default":
             sg.delete()
+    for subnet in vpc.subnets.all():
+        for interface in subnet.network_interfaces.all():
+            interface.delete()
+        subnet.delete()
     vpc.delete()
 
 
