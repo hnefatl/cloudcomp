@@ -266,9 +266,16 @@ class Interface:
             raise
 
     def run_spark_app(self):
+        if not self._cluster_started:
+           print("Cluster not started")
+           return
+
         input_url = input(
             "Enter s3 url to the input file (eg. s3a://kubernetes.group8/input.txt): "
         )
+        if not re.match(r"s3a?://.*", input_url):
+            print("Only s3 and s3a urls supported.")
+            return
 
         print("Resetting database tables")
         rds.initialise_instance(
