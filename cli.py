@@ -31,7 +31,7 @@ class Interface:
         self._running = True
         self._dry_run = False
         self._cluster_started = False
-        self._s3_bucket_path = None
+        self._s3_bucket_url = None
 
         # Map an input number to an action
         self._action_dict = {
@@ -62,8 +62,8 @@ class Interface:
         # Don't automatically kill the cluster when we exit: useful for dev
         # if self._cluster_started:
         #    self.delete_cluster()
-        if self._s3_bucket_path is not None:
-            print(f"Leaving cluster running on {self._s3_bucket_path}")
+        if self._s3_bucket_url is not None:
+            print(f"Leaving cluster running on {self._s3_bucket_url}")
 
     def run(self):
         self._get_or_create_rds_instance()
@@ -129,18 +129,20 @@ class Interface:
             print("Cluster already started")
             return
 
-        self._s3_bucket_path = (
+        self._s3_bucket_url = (
             f"s3://{self._config.s3_bucket_prefix}.{self._generate_random_string()}"
         )
 
         # Create resources
-        print(f"Creating s3 bucket {self._s3_bucket_path} in {self._config.region}")
+        print(f"Creating s3 bucket {self._s3_bucket_url} in {self._config.region}")
         self._run_aws(
-            ["s3", "mb", self._s3_bucket_path, "--region", self._config.region]
+            ["s3", "mb", self._s3_bucket_url, "--region", self._config.region]
         ).check_returncode()
         print("Uploading cluster settings to bucket")
         s3helper.upload_file(
-            self._s3_bucket_path, "config.json", self._config.json_show().encode()
+            s3helper.get_bucket_from_s3_url(self._s3_bucket_url),
+            "config.json",
+            self._config.json_show().encode(),
         )
         print(
             f"Creating cluster: {self._config.cluster_name} in {self._config.kubernetes_zones}"
@@ -184,21 +186,22 @@ class Interface:
         print("Deleting cluster")
         self._run_kops(["delete", "cluster", self._config.cluster_name, "--yes"])
         print("Deleting S3 bucket")
-        self._run_aws(["s3", "rb", self._s3_bucket_path, "--force"]).check_returncode()
-        self._s3_bucket_path = None
+        self._run_aws(["s3", "rb", self._s3_bucket_url, "--force"]).check_returncode()
+        self._s3_bucket_url = None
         self._cluster_started = False
 
     def set_existing_cluster(self):
-        self._s3_bucket_path = input(
+        self._s3_bucket_url = input(
             "Enter state store url (eg. s3://kubernetes.group8 or kubernetes.group8): "
         )
-        if not self._s3_bucket_path.startswith("s3://"):
-            self._s3_bucket_path = "s3://" + self._s3_bucket_path
+        if not self._s3_bucket_url.startswith("s3://"):
+            self._s3_bucket_url = "s3://" + self._s3_bucket_url
         self._cluster_started = True
         print("Downloading cluster config")
-        self._config.json_load(
-            s3helper.download_file(self._s3_bucket_path, "config.json").decode()
+        contents = s3helper.download_file(
+            s3helper.get_bucket_from_s3_url(self._s3_bucket_url), "config.json"
         )
+        self._config.json_load(contents.decode())
 
     def validate_cluster(self):
         if not self._cluster_started:
@@ -358,7 +361,7 @@ class Interface:
         return subprocess.run(dry + args, text=True, **kwargs)
 
     def _run_kops(self, args, **kwargs):
-        return self._run(["kops", "--state", self._s3_bucket_path] + args, **kwargs)
+        return self._run(["kops", "--state", self._s3_bucket_url] + args, **kwargs)
 
     def _run_aws(self, args, **kwargs):
         return self._run(["aws"] + args, **kwargs)

@@ -2,4 +2,4 @@
 
 import rds
 
-rds.show_db_contents("group8.cqnxkff6jrcr.eu-west-1.rds.amazonaws.com", 3306, "kc506_rc691_CloudComputingCoursework", "foo", "1234567890")
+rds.show_db_contents("group8.cqnxkff6jrcr.eu-west-1.rds.amazonaws.com", 3306, "kc506_rc691_CloudComputingCoursework", "foo", "hkXxep0A4^JZ1!H")

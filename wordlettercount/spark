@@ -70,6 +70,9 @@ case $1 in
         shift
         _local "$@"
         ;;
+    build|b)
+        _build
+        ;;
     *)
         echo "Usage: spark [kubernetes|local] INPUT-SAMPLE-ID"
         echo "kubernetes - Launch in kubernetes"
