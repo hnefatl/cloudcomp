@@ -45,7 +45,7 @@ def download_file(bucket, filename):
 def get_chunks(file_url, ideal_chunk_size):
     range_start, range_end = (0, 0)
     for line in smart_open(file_url, mode="rb", encoding="utf-8"):
-        range_end = range_end + len(line)
+        range_end += len(line)
         if range_end - range_start >= ideal_chunk_size:
             yield (range_start, range_end)
             range_start = range_end
