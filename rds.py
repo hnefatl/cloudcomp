@@ -176,29 +176,31 @@ class pymysql_connect:
 
 
 # Delete existing tables, create new tables
-def initialise_instance(host, port, db_name, username, password):
+def initialise_instance(host, port, db_name, username, password, table_suffix):
     with pymysql_connect(
         host=host, port=port, user=username, password=password, db=db_name
     ) as connection, connection.cursor() as cursor:
-        cursor.execute("DROP TABLE IF EXISTS words_spark, letters_spark")
         cursor.execute(
-            "CREATE TABLE words_spark ( rank INTEGER PRIMARY KEY, word TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )"
+            f"DROP TABLE IF EXISTS words_{table_suffix}, letters_{table_suffix}"
         )
         cursor.execute(
-            "CREATE TABLE letters_spark ( rank INTEGER PRIMARY KEY, letter TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )"
+            f"CREATE TABLE words_{table_suffix} ( rank INTEGER PRIMARY KEY, word TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )"
+        )
+        cursor.execute(
+            f"CREATE TABLE letters_{table_suffix} ( rank INTEGER PRIMARY KEY, letter TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )"
         )
 
 
-def show_db_contents(host, port, db_name, username, password):
+def show_db_contents(host, port, db_name, username, password, table_suffix):
     with pymysql_connect(
         host=host, port=port, user=username, password=password, db=db_name
     ) as connection, connection.cursor() as cursor:
         headers = ["Rank", "Word", "Category", "Frequency"]
 
-        cursor.execute("SELECT * FROM words_spark")
+        cursor.execute(f"SELECT * FROM words_{table_suffix}")
         print("Words: ")
         print(tabulate.tabulate(cursor.fetchall(), headers=headers))
 
-        cursor.execute("SELECT * FROM letters_spark")
+        cursor.execute(f"SELECT * FROM letters_{table_suffix}")
         print("Letters: ")
         print(tabulate.tabulate(cursor.fetchall(), headers=headers))

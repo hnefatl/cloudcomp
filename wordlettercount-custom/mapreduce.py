@@ -59,7 +59,7 @@ class JobList:
         self.completed = completed
 
     def __str__(self):
-        return f"JobList({len(self.running)}, {len(self.completed)})"
+        return f"Running: {len(self.running)}  Completed: {len(self.completed)}"
 
     def __repr__(self):
         return self.__str__()

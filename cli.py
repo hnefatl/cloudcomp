@@ -51,6 +51,9 @@ class Interface:
             "5": self.run_spark_app,
             "51": self.view_spark_app,
             "52": self.view_spark_app_output,
+            "6": self.run_custom_app,
+            "61": self.view_custom_app,
+            "62": self.view_custom_app_output,
             "7": self.delete_rds_instance,
             "c": lambda: subprocess.check_call("clear"),
         }
@@ -92,6 +95,9 @@ class Interface:
         print("5: Run Spark WordLetterCount App")
         print("    51: View Spark App")
         print("    52: Show Output")
+        print("6: Run Custom WordLetterCount App")
+        print("    61: View Custom App")
+        print("    62: Show Output")
         print("7: Delete RDS instance")
 
     def get_action(self):
@@ -289,13 +295,14 @@ class Interface:
             print("Only s3 and s3a urls supported.")
             return
 
-        print("Resetting database tables")
+        print("Resetting spark database tables")
         rds.initialise_instance(
             host=self._rds_host,
             port=self._rds_port,
             db_name=self._rds_db_name,
             username=self._rds_username,
             password=self._rds_password,
+            table_suffix="spark",
         )
         master_endpoint = self._get_master_endpoint()
         print(f"Master endpoint: {master_endpoint}")
@@ -339,9 +346,9 @@ class Interface:
 
     def view_spark_app(self):
         directory = os.path.dirname(os.path.realpath(__file__))
-        subprocess.check_call(
-            ["less", f"{directory}/wordlettercount/wordlettercount.py"]
-        )
+        files = ["wordlettercount/wordlettercount.py"]
+        for f in files:
+            subprocess.check_call(["less", f"{directory}/{f}"])
 
     def view_spark_app_output(self):
         rds.show_db_contents(
@@ -350,6 +357,65 @@ class Interface:
             self._rds_db_name,
             self._rds_username,
             self._rds_password,
+            "spark",
+        )
+
+    def run_custom_app(self):
+        if not self._cluster_started:
+            print("Cluster not started")
+            return
+
+        input_url = input(
+            "Enter s3 url to the input file (eg. s3a://kubernetes.group8/input.txt): "
+        )
+        if not re.match(r"s3a?://.*", input_url):
+            print("Only s3 and s3a urls supported.")
+            return
+        chunk_size = input("Enter chunk size (or blank line for default chunk size): ")
+
+        print("Resetting custom database tables")
+        rds.initialise_instance(
+            host=self._rds_host,
+            port=self._rds_port,
+            db_name=self._rds_db_name,
+            username=self._rds_username,
+            password=self._rds_password,
+            table_suffix="custom",
+        )
+
+        args = [
+            "python",
+            "wordlettercount-custom/master.py",
+            input_url,
+            self._rds_host,
+            str(self._rds_port),
+            self._config.region,
+        ]
+        env = os.environ.copy()
+        env["AWS_ACCESS_KEY_ID"] = self._aws_access_key
+        env["AWS_SECRET_ACCESS_KEY"] = self._aws_secret_key
+        if len(chunk_size) > 0:
+            args.append(chunk_size)
+        subprocess.check_call(args, env=env)
+
+    def view_custom_app(self):
+        directory = os.path.dirname(os.path.realpath(__file__))
+        files = [
+            "wordlettercount-custom/master.py",
+            "wordlettercount-custom/mapper.py",
+            "wordlettercount-custom/reducer.py",
+        ]
+        for f in files:
+            subprocess.check_call(["less", f"{directory}/{f}"])
+
+    def view_custom_app_output(self):
+        rds.show_db_contents(
+            self._rds_host,
+            self._rds_port,
+            self._rds_db_name,
+            self._rds_username,
+            self._rds_password,
+            "custom",
         )
 
     def delete_rds_instance(self):
@@ -379,14 +445,12 @@ class Interface:
             region = input("Enter the AWS region to use for RDS: ")
             print("Creating RDS instance (may take a while)")
             rds.create_entire_rds_instance(
-                region,
-                self._rds_instance_id,
-                self._rds_username,
-                self._rds_password,
+                region, self._rds_instance_id, self._rds_username, self._rds_password
             )
             instance_info = rds.get_instance_endpoint(
                 self._config.region, self._rds_instance_id
             )
+
         if instance_info is None:
             raise RuntimeError("Failed to create instance")
         self._rds_host = instance_info["host"]

@@ -21,7 +21,7 @@ def mapper(word):
     return wordlist + [((letter, "l"), 1) for letter in wl if is_ascii_alpha(letter)]
 
 
-delims = list(' \t\r\v\f,.;:?!"()[]{}-_')
+delims = list(' \n\t\r\v\f,.;:?!"()[]{}-_')
 re_split = re.compile(r"|".join(map(re.escape, delims)))
 
 

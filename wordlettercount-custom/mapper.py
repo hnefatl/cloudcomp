@@ -6,7 +6,7 @@ import itertools
 import os
 
 
-delims = list(' \t\r\v\f,.;:?!"()[]{}-_')
+delims = list(' \n\t\r\v\f,.;:?!"()[]{}-_')
 re_split = re.compile(r"|".join(map(re.escape, delims)))
 
 
@@ -36,12 +36,12 @@ def main():
         )
     src_bucket, src_filename = s3helper.get_bucket_and_file(sys.argv[1])
     dst_bucket = s3helper.get_bucket_from_s3_url(sys.argv[2])
-    print(dst_bucket)
     dst_directory = os.environ["JOB_ID"]
     chunk_range = (int(sys.argv[3]), int(sys.argv[4]))
     ranges = sys.argv[5].split(",")
 
     file_contents = s3helper.download_chunk(src_bucket, src_filename, chunk_range)
+    lines = file_contents.splitlines()
     output = {"word": [], "letter": []}
     for token in re_split.split(file_contents):
         mapper(token, output)
@@ -57,10 +57,6 @@ def main():
             separators=[",", ":"],  # Remove whitespace
         )
         s3helper.upload_file(dst_bucket, f"{dst_directory}/{r}", data.encode())
-
-    print(f"{len(file_contents.encode())} bytes")
-    print(f'{len(output["word"])} words')
-    print(f'{len(output["letter"])} letters')
 
 
 if __name__ == "__main__":

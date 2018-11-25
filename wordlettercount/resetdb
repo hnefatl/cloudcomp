@@ -1,5 +1,0 @@
-#!/usr/bin/env python3.7
-
-import rds
-
-rds.initialise_instance("group8.cqnxkff6jrcr.eu-west-1.rds.amazonaws.com", 3306, "kc506_rc691_CloudComputingCoursework", "foo", "hkXxep0A4^JZ1!H")
