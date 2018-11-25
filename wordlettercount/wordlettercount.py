@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
     print(f"Access Key: {access_key}, Secret Key: {secret_key}")
 
-    sc = pyspark.SparkContext("local", "WordLetterCount")
+    sc = pyspark.SparkContext(appName="WordLetterCount")
     sc._jsc.hadoopConfiguration().set("fs.s3a.access.key", access_key)
     sc._jsc.hadoopConfiguration().set("fs.s3a.secret.key", secret_key)
 
