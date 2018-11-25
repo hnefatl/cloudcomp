@@ -376,9 +376,10 @@ class Interface:
                 self._config.region, self._rds_instance_id
             )
         except RuntimeError:
+            region = input("Enter the AWS region to use for RDS: ")
             print("Creating RDS instance (may take a while)")
             rds.create_entire_rds_instance(
-                self._config.region,
+                region,
                 self._rds_instance_id,
                 self._rds_username,
                 self._rds_password,
