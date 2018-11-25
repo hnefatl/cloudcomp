@@ -1,4 +1,6 @@
 import boto3
+import string
+import random
 import re
 from smart_open import smart_open
 
@@ -54,7 +56,7 @@ def download_file(bucket, filename):
 # to guarantee that we'll get a valid utf-8 string from.
 def get_chunks(file_url, ideal_chunk_size):
     range_start, range_end = (0, 0)
-    for line in smart_open(file_url, mode="rb", encoding="utf-8"):
+    for line in smart_open(file_url, mode="rb"):
         range_end += len(line)
         if range_end - range_start >= ideal_chunk_size:
             yield (range_start, range_end)
@@ -68,3 +70,23 @@ def delete_bucket(bucket_url):
     bucket = boto3.resource("s3").Bucket(bucket_name)
     bucket.objects.all().delete()
     bucket.delete()
+
+
+class temporary_bucket:
+    def __init__(self, bucket_url, region):
+        self._bucket_url = bucket_url
+        self._region = region
+
+    def __enter__(self):
+        self._client = boto3.client("s3")
+        self._client.create_bucket(
+            Bucket=get_bucket_from_s3_url(self._bucket_url),
+            CreateBucketConfiguration={"LocationConstraint": self._region},
+        )
+        return self
+
+    def __exit__(self, *_):
+        self.delete()
+
+    def delete(self):
+        delete_bucket(self._bucket_url)
