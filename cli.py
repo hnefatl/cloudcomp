@@ -21,10 +21,7 @@ class Interface:
         self._config = clusterconfig.ClusterConfig()
         self._aws_access_key = aws_access_key
         self._aws_secret_key = aws_secret_key
-        self._rds_host = None
-        self._rds_port = None
-        self._vpc_id = None
-        self._rds_instance_id = "group8"
+        self._rds_instance_id_prefix = "group8"
         self._rds_username = "foo"
         self._rds_password = "hkXxep0A4^JZ1!H"
         self._rds_db_name = "kc506_rc691_CloudComputingCoursework"
@@ -69,7 +66,6 @@ class Interface:
             print(f"Leaving cluster running on {self._s3_bucket_url}")
 
     def run(self):
-        self._get_or_create_rds_instance()
         while self._running:
             self.show_menu()
             action = self.get_action()
@@ -139,6 +135,8 @@ class Interface:
             f"s3://{self._config.s3_bucket_prefix}.{self._generate_random_string()}"
         )
 
+        _, _, vpc_id = self._get_or_create_rds_instance()
+
         # Create resources
         print(f"Creating s3 bucket {self._s3_bucket_url} in {self._config.region}")
         self._run_aws(
@@ -171,7 +169,7 @@ class Interface:
                 "--node-count",
                 str(self._config.slave_count),
                 "--vpc",
-                self._vpc_id,
+                vpc_id,
                 "--yes",
             ]
         ).check_returncode()
@@ -288,6 +286,8 @@ class Interface:
             print("Cluster not started")
             return
 
+        rds_host, rds_port, _ = self._get_or_create_rds_instance()
+
         input_url = input(
             "Enter s3 url to the input file (eg. s3a://kubernetes.group8/input.txt): "
         )
@@ -297,8 +297,8 @@ class Interface:
 
         print("Resetting spark database tables")
         rds.initialise_instance(
-            host=self._rds_host,
-            port=self._rds_port,
+            host=rds_host,
+            port=rds_port,
             db_name=self._rds_db_name,
             username=self._rds_username,
             password=self._rds_password,
@@ -335,8 +335,8 @@ class Interface:
                 # Arguments to the script
                 self._aws_access_key,
                 self._aws_secret_key,
-                self._rds_host,
-                str(self._rds_port),
+                rds_host,
+                str(rds_port),
                 self._rds_username,
                 self._rds_password,
                 self._rds_db_name,
@@ -351,9 +351,10 @@ class Interface:
             subprocess.check_call(["less", f"{directory}/{f}"])
 
     def view_spark_app_output(self):
+        rds_host, rds_port, _ = self._get_or_create_rds_instance()
         rds.show_db_contents(
-            self._rds_host,
-            self._rds_port,
+            rds_host,
+            rds_port,
             self._rds_db_name,
             self._rds_username,
             self._rds_password,
@@ -365,6 +366,8 @@ class Interface:
             print("Cluster not started")
             return
 
+        rds_host, rds_port, _ = self._get_or_create_rds_instance()
+
         input_url = input(
             "Enter s3 url to the input file (eg. s3a://kubernetes.group8/input.txt): "
         )
@@ -375,8 +378,8 @@ class Interface:
 
         print("Resetting custom database tables")
         rds.initialise_instance(
-            host=self._rds_host,
-            port=self._rds_port,
+            host=rds_host,
+            port=rds_port,
             db_name=self._rds_db_name,
             username=self._rds_username,
             password=self._rds_password,
@@ -387,8 +390,8 @@ class Interface:
             "python",
             "wordlettercount-custom/master.py",
             input_url,
-            self._rds_host,
-            str(self._rds_port),
+            rds_host,
+            str(rds_port),
             self._config.region,
         ]
         env = os.environ.copy()
@@ -396,6 +399,7 @@ class Interface:
         env["AWS_SECRET_ACCESS_KEY"] = self._aws_secret_key
         if len(chunk_size) > 0:
             args.append(chunk_size)
+        print("Starting custom job")
         subprocess.check_call(args, env=env)
 
     def view_custom_app(self):
@@ -409,9 +413,10 @@ class Interface:
             subprocess.check_call(["less", f"{directory}/{f}"])
 
     def view_custom_app_output(self):
+        rds_host, rds_port, _ = self._get_or_create_rds_instance()
         rds.show_db_contents(
-            self._rds_host,
-            self._rds_port,
+            rds_host,
+            rds_port,
             self._rds_db_name,
             self._rds_username,
             self._rds_password,
@@ -420,7 +425,8 @@ class Interface:
 
     def delete_rds_instance(self):
         print("Deleting RDS instance (may take a while)")
-        rds.delete_entire_rds_instance(self._config.region, self._rds_instance_id)
+        rds_instance_id = f"{self._rds_instance_id_prefix}-{self._config.region}"
+        rds.delete_entire_rds_instance(self._config.region, rds_instance_id)
 
     def _run(self, args, **kwargs):
         dry = ["echo"] if self._dry_run else []
@@ -437,28 +443,36 @@ class Interface:
 
     def _get_or_create_rds_instance(self):
         instance_info = None
+        rds_instance_id = f"{self._rds_instance_id_prefix}-{self._config.region}"
         try:
             instance_info = rds.get_instance_endpoint(
-                self._config.region, self._rds_instance_id
+                self._config.region, rds_instance_id
             )
         except RuntimeError:
-            region = input("Enter the AWS region to use for RDS: ")
-            print("Creating RDS instance (may take a while)")
+            print(
+                f"Creating RDS instance in region {self._config.region} (may take a while)"
+            )
             rds.create_entire_rds_instance(
-                region, self._rds_instance_id, self._rds_username, self._rds_password
+                self._config.region,
+                rds_instance_id,
+                self._rds_username,
+                self._rds_password,
             )
             instance_info = rds.get_instance_endpoint(
-                self._config.region, self._rds_instance_id
+                self._config.region, rds_instance_id
             )
 
         if instance_info is None:
-            raise RuntimeError("Failed to create instance")
-        self._rds_host = instance_info["host"]
-        self._rds_port = instance_info["port"]
-        self._vpc_id = instance_info["vpc_id"]
-        print(
-            f"Found RDS instance {self._rds_instance_id} in VPC {self._vpc_id} on {self._rds_host}:{self._rds_port}"
+            raise RuntimeError("Failed to create RDS instance")
+        rds_host, rds_port, vpc_id = (
+            instance_info["host"],
+            instance_info["port"],
+            instance_info["vpc_id"],
         )
+        print(
+            f"Found RDS instance {rds_instance_id} in VPC {vpc_id} on {rds_host}:{rds_port}"
+        )
+        return (rds_host, rds_port, vpc_id)
 
     def _get_master_endpoint(self):
         output = self._run_kubectl(

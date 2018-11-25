@@ -2,6 +2,7 @@ import boto3
 import pymysql
 import tabulate
 import contextlib
+import warnings
 
 
 def delete_entire_rds_instance(region, instance_id):
@@ -180,9 +181,11 @@ def initialise_instance(host, port, db_name, username, password, table_suffix):
     with pymysql_connect(
         host=host, port=port, user=username, password=password, db=db_name
     ) as connection, connection.cursor() as cursor:
-        cursor.execute(
-            f"DROP TABLE IF EXISTS words_{table_suffix}, letters_{table_suffix}"
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            cursor.execute(
+                f"DROP TABLE IF EXISTS words_{table_suffix}, letters_{table_suffix}"
+            )
         cursor.execute(
             f"CREATE TABLE words_{table_suffix} ( rank INTEGER PRIMARY KEY, word TEXT NOT NULL, category TEXT NOT NULL, frequency INTEGER NOT NULL )"
         )
