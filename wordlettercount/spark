@@ -25,13 +25,14 @@ function _kube() {
     _kube_clean
     _build
     KUBE_MASTER=$(kubectl cluster-info | grep "master" | grep -o 'https://[^"]*.com')
+    NUM_NODES="$(kubectl get nodes | grep -c node)"
 
     # Jars not needed on master because docker file puts them in imported folder (I think...)
     spark-submit \
         --master "k8s://$KUBE_MASTER" \
         --deploy-mode cluster \
         --name simpleapp \
-        --conf spark.executor.instances=2 \
+        --conf spark.executor.instances="$((NUM_NODES - 1))" \
         --conf spark.kubernetes.pyspark.pythonVersion=3 \
         --conf spark.kubernetes.container.image=docker.io/clgroup8/wordlettercount:latest \
         --conf spark.kubernetes.container.image.pullPolicy=Always \
