@@ -41,7 +41,6 @@ def main():
     ranges = sys.argv[5].split(",")
 
     file_contents = s3helper.download_chunk(src_bucket, src_filename, chunk_range)
-    lines = file_contents.splitlines()
     output = {"word": [], "letter": []}
     for token in re_split.split(file_contents):
         mapper(token, output)
