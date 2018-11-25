@@ -74,7 +74,7 @@ case $1 in
         _build
         ;;
     *)
-        echo "Usage: spark [kubernetes|local] INPUT-SAMPLE-ID"
+        echo "Usage: spark [kubernetes|local|build] INPUT-SAMPLE-ID"
         echo "kubernetes - Launch in kubernetes"
         echo "local - Launch locally"
         exit 1
