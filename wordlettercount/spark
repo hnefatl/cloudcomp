@@ -40,7 +40,7 @@ function _kube() {
         "group8.cqnxkff6jrcr.eu-west-1.rds.amazonaws.com" \
         "3306" \
         "foo" \
-        "1234567890" \
+        "hkXxep0A4^JZ1!H" \
         "kc506_rc691_CloudComputingCoursework" \
         "s3a://kubernetes.group8.samples/sample-$1.txt"
     ./showdb
