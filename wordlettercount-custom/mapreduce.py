@@ -9,14 +9,17 @@ import os
 class JobFactory:
     next_id = 0
 
-    def __init__(self, client, image):
+    def __init__(self, client, image, app_name):
         self._client = client
         self._image = image
-        # Initialise a template kubernetes job
+        self._app_name = app_name
 
     def _create_job(self, name, *args):
+        ns = None
+        if self._app_name != "":
+            ns = {"app": self._app_name}
         return client.V1Job(
-            metadata=client.V1ObjectMeta(name=name),
+            metadata=client.V1ObjectMeta(name=name, labels=ns),
             spec=client.V1JobSpec(
                 template=client.V1PodTemplateSpec(
                     spec=client.V1PodSpec(
@@ -34,11 +37,12 @@ class JobFactory:
                                         name="AWS_SECRET_ACCESS_KEY",
                                         value=os.environ["AWS_SECRET_ACCESS_KEY"],
                                     ),
-                                    client.V1EnvVar(name="JOB_ID", value=name)
+                                    client.V1EnvVar(name="JOB_ID", value=name),
                                 ],
                                 args=args,
                             )
                         ],
+                        node_selector=ns,
                     )
                 )
             ),
@@ -67,11 +71,11 @@ class JobList:
 
 # MapReduce represents the cluster state of an inprogress MapReduce
 class MapReduce:
-    def __init__(self, app_id, client, ranges, mapper_image, reducer_image):
+    def __init__(self, app_id, client, ranges, mapper_image, reducer_image, app_name):
         self._id = app_id
         self._client = client
-        self._mapper_factory = JobFactory(client, mapper_image)
-        self._reducer_factory = JobFactory(client, reducer_image)
+        self._mapper_factory = JobFactory(client, mapper_image, app_name)
+        self._reducer_factory = JobFactory(client, reducer_image, app_name)
         self.ranges = ranges
         self.mappers = JobList([], [])
         self.reducers = {tag: JobList([], []) for tag in ranges}
