@@ -6,6 +6,7 @@ from math import ceil, floor
 import random
 import time
 import string
+import threading
 import json
 from mapreduce import MapReduce
 import boto3
@@ -67,20 +68,28 @@ def main():
     bucket_id = "".join(random.choices(string.ascii_lowercase, k=5))
     bucket_url = f"s3://group8.wlcc.{bucket_id}"
     bucket_name = s3helper.get_bucket_from_s3_url(bucket_url)
-
     print("Creating temporary bucket")
     with s3helper.temporary_bucket(bucket_url, region):
         mr = MapReduce(bucket_id, kube, RANGES, MAPPER_IMAGE, REDUCER_IMAGE)
-        for i, (c1, c2) in enumerate(s3helper.get_chunks(input_url, chunk_size)):
-            mr.start_mapper(input_url, bucket_url, str(c1), str(c2), ",".join(RANGES))
-            print(f"Computed chunk {i + 1}")
         work_done = False
         state = 0
+
+        # Computing chunk sizes is slow: we want to compute it in the background while
+        # # spinning up mappers, and without preventing us from reducing the output of the mappers
+        def spawn_mappers():
+            for c1, c2 in s3helper.get_chunks(input_url, chunk_size):
+                mr.start_mapper(
+                    input_url, bucket_url, str(c1), str(c2), ",".join(RANGES)
+                )
+
+        mapper_spawner_thread = threading.Thread(target=spawn_mappers)
+        print("Starting to spawn mappers")
+        mapper_spawner_thread.start()
 
         # Event loop updates state and looks for possible reduction
         # Terminates when state isn't changed, no reducers are started
         # and there are no running jobs.
-        while work_done or mr.is_active():
+        while work_done or mr.is_active() or mapper_spawner_thread.is_alive():
             work_done = False
             mr.update_state()
             print(
