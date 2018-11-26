@@ -77,9 +77,6 @@ def main():
         work_done = False
         state = 0
 
-        # The output of the final reducer for each tag is the merged output of that tag
-        final_reducer = {tag: None for tag in RANGES}
-
         # Event loop updates state and looks for possible reduction
         # Terminates when state isn't changed, no reducers are started
         # and there are no running jobs.
@@ -118,18 +115,6 @@ def main():
             # Termination condition is slightly different because the final completed
             # reducer does not need to be reduced.
             for tag in RANGES:
-                # Update the latest reducer for this tag (greatest id => latest job)
-                if len(mr.reducers[tag].completed) > 0:
-                    latest_reducer = max(
-                        (job.metadata.name for job in mr.reducers[tag].completed),
-                        key=lambda name: int(name.split("-")[-1]),
-                    )
-                    if (
-                        final_reducer[tag] is None
-                        or latest_reducer > final_reducer[tag]
-                    ):
-                        final_reducer[tag] = latest_reducer
-
                 while len(mr.reducers[tag].completed) >= NUM_REDUCERS_TO_REDUCERS or (
                     len(mr.reducers[tag].running) == 0
                     and len(mr.reducers[tag].completed) > 1
@@ -152,9 +137,16 @@ def main():
         print("Processing reducer outputs")
         # Collect the reducer outputs into a single dictionary
         output = {"word": [], "letter": []}
-        for tag, reducer_id in final_reducer.items():
+        for tag in RANGES:
+            if len(mr.reducers[tag].completed) == 1:
+                continue
+            elif len(mr.reducers[tag].completed) > 1:
+                raise RuntimeError(
+                    f"Expected exactly one reducer for {tag}: got {mr.reducers[tag]}"
+                )
+            final_reducer_id = mr.reducers[tag].completed[0].metadata.name
             reducer_output = json.loads(
-                s3helper.download_file(bucket_name, reducer_id).decode()
+                s3helper.download_file(bucket_name, final_reducer_id).decode()
             )
             output["word"].extend(reducer_output["word"].items())
             output["letter"].extend(reducer_output["letter"].items())
