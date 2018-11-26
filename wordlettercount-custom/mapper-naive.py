@@ -1,5 +1,4 @@
 import s3helper
-import collections
 import sys
 import re
 import json
@@ -11,6 +10,10 @@ delims = list(' \n\t\r\v\f,.;:?!"()[]{}-_')
 re_split = re.compile(r"|".join(map(re.escape, delims)))
 
 
+def flatFilter(f, iter):
+    return itertools.chain(filter(f, iter))
+
+
 def is_ascii_alpha(word):
     # string isalpha method allows unicode, which we don't want
     return all(c >= "a" and c <= "z" for c in word)
@@ -19,10 +22,10 @@ def is_ascii_alpha(word):
 def mapper(word, output):
     wl = word.lower()
     if is_ascii_alpha(wl) and len(wl) > 0:
-        output["word"][wl[0]][wl] += 1
+        output["word"].append((wl, 1))
     for letter in wl:
         if is_ascii_alpha(letter):
-            output["letter"][letter] += 1
+            output["letter"].append((letter, 1))
 
 
 def main():
@@ -38,21 +41,18 @@ def main():
     ranges = sys.argv[5].split(",")
 
     file_contents = s3helper.download_chunk(src_bucket, src_filename, chunk_range)
-    output = {
-        "word": collections.defaultdict(lambda: collections.defaultdict(int)),
-        "letter": collections.defaultdict(int),
-    }
+    output = {"word": [], "letter": []}
     for token in re_split.split(file_contents):
         mapper(token, output)
 
     for r in ranges:
         start, end = r.split("-")
         lrange = {chr(c) for c in range(ord(start), ord(end) + 1)}
-        bundled_words = {}
-        for l in lrange:
-            bundled_words.update(output["word"][l])
         data = json.dumps(
-            {"word": bundled_words, "letter": {l: output["letter"][l] for l in lrange}},
+            {
+                "word": list(flatFilter(lambda x: x[0][0] in lrange, output["word"])),
+                "letter": list(flatFilter(lambda x: x[0] in lrange, output["letter"])),
+            },
             separators=[",", ":"],  # Remove whitespace
         )
         s3helper.upload_file(dst_bucket, f"{dst_directory}/{r}", data.encode())
