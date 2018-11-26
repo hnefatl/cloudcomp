@@ -43,10 +43,16 @@ def show_db_contents(host, port, db_name, username, password, table_suffix):
     ) as connection, connection.cursor() as cursor:
         headers = ["Rank", "Word", "Category", "Frequency"]
 
+        output = ""
         cursor.execute(f"SELECT * FROM words_{table_suffix}")
-        print("Words: ")
-        print(tabulate.tabulate(cursor.fetchall(), headers=headers))
+        output += "Words: \n"
+        output += tabulate.tabulate(cursor.fetchall(), headers=headers)
+        output += "\n\n"
 
         cursor.execute(f"SELECT * FROM letters_{table_suffix}")
-        print("Letters: ")
-        print(tabulate.tabulate(cursor.fetchall(), headers=headers))
+        output += "Letters: \n"
+        output += tabulate.tabulate(cursor.fetchall(), headers=headers)
+        return output
+
+def print_db_contents(*args, **kwargs):
+    print(show_db_contents(*args, **kwargs))

@@ -366,7 +366,7 @@ class Interface:
 
     def view_spark_app_output(self):
         rds_host, rds_port, _ = self._get_or_create_rds_instance()
-        db.show_db_contents(
+        results = db.show_db_contents(
             rds_host,
             rds_port,
             self._rds_db_name,
@@ -374,6 +374,10 @@ class Interface:
             self._rds_password,
             "spark",
         )
+        with tempfile.NamedTemporaryFile("w+") as f:
+            f.write(results)
+            subprocess.check_call(["less", f.name])
+
 
     def run_custom_app(self):
         if not self._cluster_started:
@@ -428,7 +432,7 @@ class Interface:
 
     def view_custom_app_output(self):
         rds_host, rds_port, _ = self._get_or_create_rds_instance()
-        db.show_db_contents(
+        results = db.show_db_contents(
             rds_host,
             rds_port,
             self._rds_db_name,
@@ -436,6 +440,9 @@ class Interface:
             self._rds_password,
             "custom",
         )
+        with tempfile.NamedTemporaryFile("w+") as f:
+            f.write(results)
+            subprocess.check_call(["less", f.name])
 
     def delete_rds_instance(self):
         print("Deleting RDS instance (may take a while)")
