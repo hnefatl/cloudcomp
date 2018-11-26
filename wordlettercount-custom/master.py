@@ -68,9 +68,13 @@ def main():
     bucket_url = f"s3://group8.wlcc.{bucket_id}"
     bucket_name = s3helper.get_bucket_from_s3_url(bucket_url)
 
+    print("Creating temporary bucket")
     with s3helper.temporary_bucket(bucket_url, region):
         mr = MapReduce(bucket_id, kube, RANGES, MAPPER_IMAGE, REDUCER_IMAGE)
-        for (c1, c2) in s3helper.get_chunks(input_url, chunk_size):
+        print("Computing chunks")
+        chunks = s3helper.get_chunks(input_url, chunk_size)
+        print("Starting mappers")
+        for (c1, c2) in chunks:
             mr.start_mapper(input_url, bucket_url, str(c1), str(c2), ",".join(RANGES))
         work_done = False
         state = 0
@@ -146,6 +150,7 @@ def main():
                     work_done = True
             time.sleep(EVENT_LOOP_UPDATE_INTERVAL)
 
+        print("Processing reducer outputs")
         # Collect the reducer outputs into a single dictionary
         output = {"word": [], "letter": []}
         for tag, reducer_id in final_reducer.items():
@@ -160,6 +165,7 @@ def main():
             output[r].sort(key=lambda x: x[0])
             output[r].sort(key=lambda x: x[1], reverse=True)
 
+        print("Writing results to database")
         write_to_db(rds_host, rds_port, output)
 
 
