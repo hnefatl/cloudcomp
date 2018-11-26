@@ -138,7 +138,7 @@ def main():
         # Collect the reducer outputs into a single dictionary
         output = {"word": [], "letter": []}
         for tag in RANGES:
-            if len(mr.reducers[tag].completed) == 1:
+            if len(mr.reducers[tag].completed) < 1:
                 continue
             elif len(mr.reducers[tag].completed) > 1:
                 raise RuntimeError(
