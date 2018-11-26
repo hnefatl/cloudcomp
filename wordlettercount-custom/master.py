@@ -6,7 +6,7 @@ from math import ceil, floor
 import random
 import time
 import string
-import threading
+import multiprocessing
 import json
 from mapreduce import MapReduce
 import boto3
@@ -75,27 +75,37 @@ def main():
         state = 0
 
         # Computing chunk sizes is slow: we want to compute it in the background while
-        # # spinning up mappers, and without preventing us from reducing the output of the mappers
+        # spinning up mappers, to allow us to reduce the output of the mappers
         def spawn_mappers():
-            for c1, c2 in s3helper.get_chunks(input_url, chunk_size):
-                mr.start_mapper(
-                    input_url, bucket_url, str(c1), str(c2), ",".join(RANGES)
-                )
+            for chunk in s3helper.get_chunks(input_url, chunk_size):
+                chunk_computer_output.put(chunk)
+            chunk_computer_output.close()
 
-        mapper_spawner_thread = threading.Thread(target=spawn_mappers)
-        print("Starting to spawn mappers")
-        mapper_spawner_thread.start()
+        chunk_computer = multiprocessing.Process(target=spawn_mappers)
+        chunk_computer_output = multiprocessing.Queue()
+        print("Starting to compute chunks")
+        chunk_computer.start()
 
         # Event loop updates state and looks for possible reduction
         # Terminates when state isn't changed, no reducers are started
         # and there are no running jobs.
-        while work_done or mr.is_active() or mapper_spawner_thread.is_alive():
+        while work_done or mr.is_active() or chunk_computer.is_alive():
             work_done = False
             mr.update_state()
             print(
                 f"State {state} - Mappers: [{mr.mappers}]    Reducers: [{mr.reducers}]"
             )
             state += 1
+
+            try:
+                while True:
+                    c1, c2 = chunk_computer_output.get(block=False)
+                    mr.start_mapper(
+                        input_url, bucket_url, str(c1), str(c2), ",".join(RANGES)
+                    )
+            except multiprocessing.queues.Empty:
+                pass
+
             # Reduce mappers before other reducers
             # Logic behind explicit order is that the result of mappers are not
             # as far along the reduction process, so will need more time to be processed.
