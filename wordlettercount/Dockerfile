@@ -38,8 +38,9 @@ RUN apk add --no-cache python3 python3-dev && \
     # Removed the .cache to save space
     rm -r /root/.cache
 
-RUN pip3.6 install pymysql
+RUN pip3.6 install pymysql tabulate
 
-COPY wordlettercount.py $SPARK_HOME/work-dir/
-COPY *.jar $SPARK_HOME/jars/
+COPY wordlettercount/wordlettercount.py $SPARK_HOME/work-dir/
+COPY db.py $SPARK_HOME/work-dir/
+COPY wordlettercount/*.jar $SPARK_HOME/jars/
 ENTRYPOINT [ "/usr/entrypoint.sh" ]

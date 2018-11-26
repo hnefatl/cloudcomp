@@ -11,7 +11,10 @@ function _init() {
 }
 
 function _build() {
-    docker build . -t wordlettercount
+    # Get directory containing the script
+    builddir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+    builddir="$(dirname "$builddir")" # One level up to project root
+    docker build "$builddir" -f "$builddir/wordlettercount/Dockerfile" -t wordlettercount
     docker tag wordlettercount:latest clgroup8/wordlettercount
     docker push clgroup8/wordlettercount
 }

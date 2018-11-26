@@ -3,7 +3,6 @@
 import sys
 import os
 import pyspark
-import pymysql
 import time
 from math import ceil, floor
 import re
