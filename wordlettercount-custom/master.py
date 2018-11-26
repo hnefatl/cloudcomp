@@ -139,7 +139,7 @@ def main():
         output = {"word": [], "letter": []}
         for tag in RANGES:
             if len(mr.reducers[tag].completed) < 1:
-                continue
+                continue  # It's valid for the input to contain no letters in a range
             elif len(mr.reducers[tag].completed) > 1:
                 raise RuntimeError(
                     f"Expected exactly one reducer for {tag}: got {mr.reducers[tag]}"

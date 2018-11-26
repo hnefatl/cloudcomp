@@ -5,6 +5,22 @@ import re
 from smart_open import smart_open
 
 
+def convert_url_to_s3(url):
+    if url.startswith("s3a://"):
+        return url
+    if url.startswith("s3://"):  # We prefer s3a urls to s3
+        return f"s3a://{url[5:]}"
+    # Check for a http(s) link to an s3 bucket, eg.
+    # https://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-200MB.txt
+    # Capture everything after the "amazonaws.com/" prefix, as we can make an S3 url from it
+    match = re.match(r"https?://s3\.[^/]+/(.*)", url)
+    if match is not None:
+        return f"s3a://{match.group(1)}"
+    raise RuntimeError(
+        "Only s3(a):// and http(s)://s3.<region>.amazonaws.com links supported."
+    )
+
+
 # Splits an S3 url into the bucket name, discarding the protocol and the file name
 def get_bucket_from_s3_url(url):
     match = re.match(r"s3a?://([^/]+).*", url)

@@ -302,12 +302,9 @@ class Interface:
 
         rds_host, rds_port, _ = self._get_or_create_rds_instance()
 
-        input_url = input(
-            "Enter s3 url to the input file (eg. s3a://kubernetes.group8/input.txt): "
-        )
-        if not re.match(r"s3a?://.*", input_url):
-            print("Only s3 and s3a urls supported.")
-            return
+        input_url = input("Enter url to the input file: ")
+        # Validate and convert to an S3 link
+        input_url = s3helper.convert_url_to_s3(input_url)
 
         print("Resetting spark database tables")
         db.initialise_instance(
@@ -381,7 +378,6 @@ class Interface:
             f.write(results)
             subprocess.check_call(["less", f.name])
 
-
     def run_custom_app(self):
         if not self._cluster_started:
             print("Cluster not started")
@@ -389,12 +385,9 @@ class Interface:
 
         rds_host, rds_port, _ = self._get_or_create_rds_instance()
 
-        input_url = input(
-            "Enter s3 url to the input file (eg. s3a://kubernetes.group8/input.txt): "
-        )
-        if not re.match(r"s3a?://.*", input_url):
-            print("Only s3 and s3a urls supported.")
-            return
+        input_url = input("Enter url to the input file: ")
+        input_url = s3helper.convert_url_to_s3(input_url)
+
         chunk_size = input("Enter chunk size (or blank line for default chunk size): ")
 
         print("Resetting custom database tables")
