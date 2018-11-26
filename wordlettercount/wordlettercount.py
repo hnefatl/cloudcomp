@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import contextlib
 import sys
 import os
 import pyspark
@@ -8,6 +7,8 @@ import pymysql
 import time
 from math import ceil, floor
 import re
+
+import db
 
 
 def is_ascii_alpha(word):
@@ -45,26 +46,11 @@ def process(data):
     return (process_categories(data["w"]), process_categories(data["l"]))
 
 
-# Copied from rds.py to remove the dependency
-class pymysql_connect:
-    def __init__(self, *args, **kwargs):
-        self._conn = pymysql.connect(*args, **kwargs)
-        self._exitstack = contextlib.ExitStack()
-
-    def __enter__(self):
-        self._exitstack.enter_context(self._conn)
-        return self._conn
-
-    def __exit__(self, *_):
-        self._exitstack.close()
-        self._conn.close()
-
-
 def write_to_db(host, port, db_name, username, password, data):
     word_data, letter_data = process(data)
 
     print(f"Connecting to {host}:{port}")
-    with pymysql_connect(
+    with db.pymysql_connect(
         host=host, port=port, user=username, password=password, db=db_name
     ) as connection, connection.cursor() as cursor:
         cursor.executemany("INSERT INTO words_spark VALUES (%s,%s,%s,%s)", word_data)

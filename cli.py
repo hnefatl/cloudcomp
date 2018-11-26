@@ -14,6 +14,7 @@ import pathlib
 
 import clusterconfig
 import rds
+import db
 
 
 class Interface:
@@ -296,7 +297,7 @@ class Interface:
             return
 
         print("Resetting spark database tables")
-        rds.initialise_instance(
+        db.initialise_instance(
             host=rds_host,
             port=rds_port,
             db_name=self._rds_db_name,
@@ -352,7 +353,7 @@ class Interface:
 
     def view_spark_app_output(self):
         rds_host, rds_port, _ = self._get_or_create_rds_instance()
-        rds.show_db_contents(
+        db.show_db_contents(
             rds_host,
             rds_port,
             self._rds_db_name,
@@ -377,7 +378,7 @@ class Interface:
         chunk_size = input("Enter chunk size (or blank line for default chunk size): ")
 
         print("Resetting custom database tables")
-        rds.initialise_instance(
+        db.initialise_instance(
             host=rds_host,
             port=rds_port,
             db_name=self._rds_db_name,
@@ -414,7 +415,7 @@ class Interface:
 
     def view_custom_app_output(self):
         rds_host, rds_port, _ = self._get_or_create_rds_instance()
-        rds.show_db_contents(
+        db.show_db_contents(
             rds_host,
             rds_port,
             self._rds_db_name,

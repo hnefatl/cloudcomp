@@ -11,7 +11,7 @@ from mapreduce import MapReduce
 import boto3
 
 import s3helper
-import rds
+import db
 
 MAPPER_IMAGE = "clgroup8/mapper:latest"
 REDUCER_IMAGE = "clgroup8/reducer:latest"
@@ -185,7 +185,7 @@ def write_to_db(host, port, data):
         process_categories(data["letter"]),
     )
 
-    with rds.pymysql_connect(
+    with db.pymysql_connect(
         host=host, port=port, user=RDS_USERNAME, password=RDS_PASSWORD, db=RDS_DB_NAME
     ) as connection, connection.cursor() as cursor:
         cursor.executemany("INSERT INTO words_custom VALUES (%s,%s,%s,%s)", word_data)
