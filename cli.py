@@ -322,6 +322,7 @@ class Interface:
         print(f"Master endpoint: {master_endpoint}")
         print("Starting spark job")
         # Run the spark job
+        start_s = time.monotonic()
         subprocess.check_call(
             [
                 "spark-submit",
@@ -357,6 +358,8 @@ class Interface:
                 input_url,
             ]
         )
+        end_s = time.monotonic()
+        print(f"Took {end_s - start_s}s")
 
     def view_spark_app(self):
         directory = os.path.dirname(os.path.realpath(__file__))
@@ -412,13 +415,17 @@ class Interface:
             str(rds_port),
             self._config.region,
         ]
+        if len(chunk_size) > 0:
+            args.append(chunk_size)
         env = os.environ.copy()
         env["AWS_ACCESS_KEY_ID"] = self._aws_access_key
         env["AWS_SECRET_ACCESS_KEY"] = self._aws_secret_key
-        if len(chunk_size) > 0:
-            args.append(chunk_size)
+
         print("Starting custom job")
+        start_s = time.monotonic()
         subprocess.check_call(args, env=env)
+        end_s = time.monotonic()
+        print(f"Took {end_s - start_s}s")
 
     def view_custom_app(self):
         directory = os.path.dirname(os.path.realpath(__file__))

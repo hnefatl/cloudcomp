@@ -69,7 +69,6 @@ def main():
     bucket_name = s3helper.get_bucket_from_s3_url(bucket_url)
 
     print("Creating temporary bucket")
-    start_s = time.monotonic()
     with s3helper.temporary_bucket(bucket_url, region):
         mr = MapReduce(bucket_id, kube, RANGES, MAPPER_IMAGE, REDUCER_IMAGE)
         for i, (c1, c2) in enumerate(s3helper.get_chunks(input_url, chunk_size)):
@@ -166,8 +165,6 @@ def main():
 
         print("Writing results to database")
         write_to_db(rds_host, rds_port, output)
-    end_s = time.monotonic()
-    print(f"Custom mapreduce took {end_s - start_s}s")
 
 
 def write_to_db(host, port, data):

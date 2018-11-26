@@ -92,17 +92,19 @@ if __name__ == "__main__":
         text_file.flatMap(lambda line: re_split.split(line))  # Split on punctuation
         .flatMap(mapper)  # Add tags for words/letters along with initial counts
         .reduceByKey(lambda x, y: x + y)  # Sum frequencies of each word/letter
-        .sortBy(lambda x: x[0][0])
-        .sortBy(lambda x: x[1], False)  # Sort by frequency
         .groupBy(
             lambda x: x[0][1]
         )  # Group words vs letters (sorted order is preserved)
         .mapValues(
             lambda x: map(lambda y: (y[0][0], y[1]), x)
         )  # Remove tag from the value
-        .mapValues(list)  # Convert the results of groupBy from iterables to lists
-        .collectAsMap()  # Get words
+        .mapValues(list)
+        .collectAsMap()  # Get dictionary of words/letters
     )
+    # Sort the resulting lists of pairs for words/letters
+    for r in results:
+        results[r].sort(key=lambda x: x[0])
+        results[r].sort(key=lambda x: x[1], reverse=True)
 
     write_to_db(
         host=db_host,
