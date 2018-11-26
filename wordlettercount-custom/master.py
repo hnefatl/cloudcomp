@@ -72,10 +72,9 @@ def main():
     start_s = time.monotonic()
     with s3helper.temporary_bucket(bucket_url, region):
         mr = MapReduce(bucket_id, kube, RANGES, MAPPER_IMAGE, REDUCER_IMAGE)
-        print("Computing chunks and starting mappers")
-        
-        for (c1, c2) in s3helper.get_chunks(input_url, chunk_size):
+        for i, (c1, c2) in enumerate(s3helper.get_chunks(input_url, chunk_size)):
             mr.start_mapper(input_url, bucket_url, str(c1), str(c2), ",".join(RANGES))
+            print(f"Computed chunk {i + 1}")
         work_done = False
         state = 0
 
