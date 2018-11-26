@@ -118,10 +118,11 @@ def main():
             # Termination condition is slightly different because the final completed
             # reducer does not need to be reduced.
             for tag in RANGES:
-                # Update the latest reducer for this tag (greatest name => latest job)
+                # Update the latest reducer for this tag (greatest id => latest job)
                 if len(mr.reducers[tag].completed) > 0:
                     latest_reducer = max(
-                        job.metadata.name for job in mr.reducers[tag].completed
+                        (job.metadata.name for job in mr.reducers[tag].completed),
+                        key=lambda name: int(name.split("-")[-1]),
                     )
                     if (
                         final_reducer[tag] is None
