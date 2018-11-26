@@ -30,6 +30,7 @@ class Interface:
         self._dry_run = False
         self._cluster_started = False
         self._s3_bucket_url = None
+        self._proxy_process = None
 
         # Map an input number to an action
         self._action_dict = {
@@ -41,7 +42,8 @@ class Interface:
             "21": self.validate_cluster,
             "22": self.deploy_dashboard,
             "23": self.access_dashboard,
-            "24": self.validate_cluster_wait,
+            "24": self.kill_dashboard,
+            "25": self.validate_cluster_wait,
             "3": self.view_cluster,
             "31": self.get_admin_password,
             "32": self.get_admin_service_token,
@@ -61,11 +63,10 @@ class Interface:
         return self
 
     def __exit__(self, *_):
-        # Don't automatically kill the cluster when we exit: useful for dev
-        # if self._cluster_started:
-        #    self.delete_cluster()
         if self._s3_bucket_url is not None:
             print(f"Leaving cluster running on {self._s3_bucket_url}")
+        if self._proxy_process is not None:
+            self.kill_dashboard()
 
     def run(self):
         while self._running:
@@ -85,7 +86,8 @@ class Interface:
         print("    21: Validate the cluster")
         print("    22: Deploy the Kubernetes web dashboard")
         print("    23: Access the Kubernetes web dashboard")
-        print("    24: Wait for the cluster to be valid")
+        print("    24: Kill the Kubernetes web dashboard")
+        print("    25: Wait for the cluster to be valid")
         print("3: View the cluster")
         print("    31: Get the admin password")
         print("    32: Get the admin service account token")
@@ -235,6 +237,9 @@ class Interface:
         self._run_kops(["get", "ig"]).check_returncode()
 
     def deploy_dashboard(self):
+        if not self._cluster_started:
+            print("Cluster not started")
+            return
         print("Creating dashboard")
         self._run_kubectl(
             [
@@ -245,17 +250,24 @@ class Interface:
         ).check_returncode()
 
     def access_dashboard(self):
+        if self._proxy_process is not None:
+            print("Proxy already running")
+            return
         print("Launching proxy")
-        proxy = subprocess.Popen(["kubectl", "proxy"])
+        self._proxy_process = subprocess.Popen(["kubectl", "proxy"])
         time.sleep(1)
 
         print(
             "Open http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/"
         )
 
-        input("Press enter to kill proxy")
-        proxy.kill()
-        proxy.wait()
+    def kill_dashboard(self):
+        if self._proxy_process is None:
+            print("Proxy not running")
+            return
+        self._proxy_process.kill()
+        self._proxy_process.wait()
+        self._proxy_process = None
         print("Proxy killed")
 
     def get_admin_password(self):
