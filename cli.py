@@ -54,6 +54,7 @@ class Interface:
             "62": self.view_custom_app_output,
             "7": self.delete_rds_instance,
             "c": lambda: subprocess.check_call("clear"),
+            "b": lambda: subprocess.call("beep"),
         }
 
     def __enter__(self):
