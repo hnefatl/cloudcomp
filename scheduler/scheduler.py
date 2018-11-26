@@ -32,17 +32,19 @@ class Scheduler:
         self._apps = apps
         self._unallocated = {
             node.metadata.name
-            for node in self._client.list_node(label_selector="kubernetes.io/role=node")
+            for node in self._client.list_node(
+                label_selector="kubernetes.io/role=node"
+            ).items
         }
-        self.allocations = {app: set() for app in self._apps}
+        self.allocations = {app.name: set() for app in self._apps}
 
-    def _set_app_on_node(self, node, app):
-        self._client.patch_node(node, {"metadata": {"labels": {"app": app}}})
+    def _set_app_on_node(self, node, app_name):
+        self._client.patch_node(node, {"metadata": {"labels": {"app": app_name}}})
 
     def _unallocate_local(self, app, n):
         to_unallocate = set()
         num_req = n  # Take a copy in case exception is thrown
-        for node in self.allocations[app]:
+        for node in self.allocations[app.name]:
             if n == 0:
                 break
 
@@ -56,25 +58,27 @@ class Scheduler:
                 to_unallocate.add(node)
 
         if n == 0:  # Unallocation request met
-            self.allocations[app] = self.allocations[app].difference(to_unallocate)
+            self.allocations[app.name] = self.allocations[app.name].difference(
+                to_unallocate
+            )
             self._unallocated = self._unallocated.union(to_unallocate)
             return to_unallocate
         else:
             raise AllocationError(
-                f"Unallocation request for {num_req} nodes; {app} has {num_req - n} nodes that may be unallocated"
+                f"Unallocation request for {num_req} nodes; {app.name} has {num_req - n} nodes that may be unallocated"
             )
 
     def _unallocate(self, app, n):
-        nodes = self._unallocate_local(self, app, n)
+        nodes = self._unallocate_local(app, n)
         for node in nodes:
-            self._set_app_on_node(app, "")
+            self._set_app_on_node(node, "")
         return nodes
 
     def _drain(self, app, nodes):
         for node in nodes:
             podList = self._client.list_namespaced_pod(
                 "default",
-                label_selector=f"app={app}",
+                label_selector=f"app={app.name}",
                 field_selector=f"spec.nodeName={node}",
             )
             for pod in podList.items:
@@ -92,30 +96,35 @@ class Scheduler:
             to_allocate.add(node)
         if n > 0:
             raise AllocationError(
-                f"Allocation request for {num_req} nodes to {app}; Only {num_req - n} unallocated nodes exist"
+                f"Allocation request for {num_req} nodes to {app.name}; Only {num_req - n} unallocated nodes exist"
             )
 
         for node in to_allocate:
-            self._set_app_on_node(node, app)
-            pass
+            self._set_app_on_node(node, app.name)
+
+        self._unallocated = self._unallocated.difference(to_allocate)
+        self.allocations[app.name] = self.allocations[app.name].union(to_allocate)
 
         return to_allocate
 
+    def num_unallocated(self):
+        return len(self._unallocated)
+
     def unallocate(self, app, n=1, drain=True):
-        assert app in self.allocations
-        nodes = self._unallocate(self, app, n)
+        assert app.name in self.allocations
+        nodes = self._unallocate(app, n)
         if drain:
-            Scheduler._drain(nodes)
+            self._drain(app, nodes)
         return nodes
 
     def allocate(self, app, n=1):
-        assert app in self.allocations
-        nodes = self._allocate(self, app, n)
+        assert app.name in self.allocations
+        nodes = self._allocate(app, n)
         return nodes
 
     def transfer(self, app1, app2, n=1, drain=True):
-        assert app1 in self.allocations
-        assert app2 in self.allocations
+        assert app1.name in self.allocations
+        assert app2.name in self.allocations
         transferred = None
         if drain:
             transferred = self.unallocate(app1, n, drain)
