@@ -46,6 +46,21 @@ class Scheduler:
         }
         self._allocated = {app.name: set() for app in self._apps}
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        for node in self._allocated_iter():
+            self._clear_label(node)
+
+    def _allocated_iter(self):
+        for nodes in self._allocated:
+            for node in nodes:
+                yield node
+
+    def _clear_label(self, node):
+        self._client.patch_node(node, {"metadata": {"labels": {"app": None}}})
+
     # Call k8s API and sets the node label to the specified app
     def _set_app_on_node(self, node, app_name):
         self._client.patch_node(node, {"metadata": {"labels": {"app": app_name}}})
