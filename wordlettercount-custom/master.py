@@ -89,7 +89,12 @@ def main():
         # Event loop updates state and looks for possible reduction
         # Terminates when state isn't changed, no reducers are started
         # and there are no running jobs.
-        while work_done or mr.is_active() or chunk_computer.is_alive():
+        while (
+            work_done
+            or mr.is_active()
+            or chunk_computer.is_alive()
+            or not chunk_computer_output.empty()
+        ):
             work_done = False
             mr.update_state()
             print(
