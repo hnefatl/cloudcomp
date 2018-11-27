@@ -18,10 +18,12 @@ class JobFactory:
         ns = None
         if self._app_name != "":
             ns = {"app": self._app_name}
+        metadata = client.V1ObjectMeta(name=name, labels=ns)
         return client.V1Job(
-            metadata=client.V1ObjectMeta(name=name, labels=ns),
+            metadata=metadata,
             spec=client.V1JobSpec(
                 template=client.V1PodTemplateSpec(
+                    metadata=metadata,
                     spec=client.V1PodSpec(
                         restart_policy="OnFailure",
                         containers=[
