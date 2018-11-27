@@ -77,7 +77,8 @@ class Scheduler:
                 break
 
             podList = self._client.list_namespaced_pod(
-                "default", field_selector=f"spec.nodeName={node}"
+                "default",
+                field_selector=f"spec.nodeName={node},status.phase!=Succeeded",
             )
             if any(app.is_master(pod.metadata.name) for pod in podList.items):
                 continue
