@@ -2,6 +2,7 @@
 from kubernetes import client
 
 
+# An App is defined by a name, and an identifier to uniquely match the master node (if any)
 class App:
     def __init__(self, name, master):
         self.name = name
@@ -12,7 +13,14 @@ class App:
             return True
         return False
 
+    def __repr__(self):
+        if self._master == "":
+            return f"Application({self.name})"
+        else:
+            return f"Application({self.name}, {self._master})"
 
+
+# AllocationError is the error thrown by the Scheduler when the requested allocation is impossible
 class AllocationError(Exception):
     pass
 
@@ -30,21 +38,24 @@ class Scheduler:
     def __init__(self, client, apps):
         self._client = client
         self._apps = apps
-        self._unallocated = {
+        self._deallocated = {
             node.metadata.name
             for node in self._client.list_node(
                 label_selector="kubernetes.io/role=node"
             ).items
         }
-        self.allocations = {app.name: set() for app in self._apps}
+        self._allocated = {app.name: set() for app in self._apps}
 
+    # Call k8s API and sets the node label to the specified app
     def _set_app_on_node(self, node, app_name):
         self._client.patch_node(node, {"metadata": {"labels": {"app": app_name}}})
 
-    def _unallocate_local(self, app, n):
-        to_unallocate = set()
+    # Deallocate n nodes from app, making sure that the master is not scheduled on the deallocated nodes
+    # This does not actually deallocate, but only modifies the schedulers internal state (required for an optimisation is transfer)
+    def _deallocate_local(self, app, n):
+        to_deallocate = set()
         num_req = n  # Take a copy in case exception is thrown
-        for node in self.allocations[app.name]:
+        for node in self._allocated[app.name]:
             if n == 0:
                 break
 
@@ -55,25 +66,27 @@ class Scheduler:
                 continue
             else:
                 n -= 1
-                to_unallocate.add(node)
+                to_deallocate.add(node)
 
-        if n == 0:  # Unallocation request met
-            self.allocations[app.name] = self.allocations[app.name].difference(
-                to_unallocate
+        if n == 0:  # Deallocation request met
+            self._allocated[app.name] = self._allocated[app.name].difference(
+                to_deallocate
             )
-            self._unallocated = self._unallocated.union(to_unallocate)
-            return to_unallocate
+            self._deallocated = self._deallocated.union(to_deallocate)
+            return to_deallocate
         else:
             raise AllocationError(
-                f"Unallocation request for {num_req} nodes; {app.name} has {num_req - n} nodes that may be unallocated"
+                f"Deallocation request for {num_req} nodes; {app.name} has {num_req - n} nodes that may be deallocated"
             )
 
-    def _unallocate(self, app, n):
-        nodes = self._unallocate_local(app, n)
+    # Deallocates n nodes from the app
+    def _deallocate(self, app, n):
+        nodes = self._deallocate_local(app, n)
         for node in nodes:
             self._set_app_on_node(node, "")
         return nodes
 
+    # Deletes pods belonging to app from the nodes
     def _drain(self, app, nodes):
         for node in nodes:
             podList = self._client.list_namespaced_pod(
@@ -82,54 +95,63 @@ class Scheduler:
                 field_selector=f"spec.nodeName={node}",
             )
             for pod in podList.items:
-                self._client.delete(
+                self._client.delete_namespaced_pod(
                     pod.metadata.name, "default", body=client.V1DeleteOptions()
                 )
 
-    def _allocate(self, app, n):
+    @property
+    def deallocated(self):
+        return self._deallocated
+
+    @property
+    def allocated(self):
+        return self._allocated
+
+    @property
+    def apps(self):
+        return self._apps
+
+    # External wrapper around _deallocate which also optionally drains nodes
+    def deallocate(self, app, n=1, drain=True):
+        assert app.name in self._allocated
+        nodes = self._deallocate(app, n)
+        if drain:
+            self._drain(app, nodes)
+        return nodes
+
+    # Allocates n nodes to the app
+    def allocate(self, app, n=1):
+        assert app in self._allocated
         to_allocate = set()
         num_req = n
-        for node in self._unallocated:
+        for node in self._deallocated:
             if n == 0:
                 break
             n -= 1
             to_allocate.add(node)
         if n > 0:
             raise AllocationError(
-                f"Allocation request for {num_req} nodes to {app.name}; Only {num_req - n} unallocated nodes exist"
+                f"Allocation request for {num_req} nodes to {app.name}; Only {num_req - n} deallocated nodes exist"
             )
 
         for node in to_allocate:
             self._set_app_on_node(node, app.name)
 
-        self._unallocated = self._unallocated.difference(to_allocate)
-        self.allocations[app.name] = self.allocations[app.name].union(to_allocate)
+        self._deallocated = self._deallocated.difference(to_allocate)
+        self._allocated[app.name] = self._allocated[app.name].union(to_allocate)
 
         return to_allocate
 
-    def num_unallocated(self):
-        return len(self._unallocated)
-
-    def unallocate(self, app, n=1, drain=True):
-        assert app.name in self.allocations
-        nodes = self._unallocate(app, n)
-        if drain:
-            self._drain(app, nodes)
-        return nodes
-
-    def allocate(self, app, n=1):
-        assert app.name in self.allocations
-        nodes = self._allocate(app, n)
-        return nodes
-
+    # Transfers n nodes from app1 -> app2
+    # In order to optimise number of requests, only uses deallocate_local, since
+    # allocate replaces the node labels anyway
     def transfer(self, app1, app2, n=1, drain=True):
-        assert app1.name in self.allocations
-        assert app2.name in self.allocations
-        transferred = None
+        assert app1.name in self._allocated
+        assert app2.name in self._allocated
+        transferred = self._deallocate_local(app1, n)
+        # Allocate first to allow apps to be scheduled ASAP
+        self.allocate(app2, n)
         if drain:
-            transferred = self.unallocate(app1, n, drain)
-            self.allocate(app2, n)
-        else:
-            transferred = self.unallocate_local(app1, n)
-            self.allocate(app2, n)
+            # Do not need to drain a node before allocation as drain only deletes pods belonging to a specified app
+            self._drain(app1, transferred)
         return transferred
