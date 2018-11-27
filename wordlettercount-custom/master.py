@@ -9,7 +9,6 @@ import string
 import multiprocessing
 import json
 from mapreduce import MapReduce
-import boto3
 
 import s3helper
 import db
@@ -47,9 +46,9 @@ def get_s3_url(bucket, job, tag):
 
 
 def main():
-    if len(sys.argv) not in [5, 6]:
+    if len(sys.argv) not in [6, 7]:
         print(
-            "Usage: master.py <input-url> <rds-hostname> <rds-port> <region> [chunk-size]"
+            "Usage: master.py <input-url> <rds-hostname> <rds-port> <region> <app-name> [chunk-size]"
         )
         sys.exit(1)
 
@@ -57,9 +56,10 @@ def main():
     rds_host = sys.argv[2]
     rds_port = int(sys.argv[3])
     region = sys.argv[4]
+    app_name = sys.argv[5]
     chunk_size = 50_000_000
-    if len(sys.argv) == 6:
-        chunk_size = int(sys.argv[5])
+    if len(sys.argv) == 7:
+        chunk_size = int(sys.argv[6])
     if chunk_size <= 0:
         raise RuntimeError(f"Chunk size must be a positive number: got {chunk_size}")
 
@@ -70,7 +70,7 @@ def main():
     bucket_name = s3helper.get_bucket_from_s3_url(bucket_url)
     print("Creating temporary bucket")
     with s3helper.temporary_bucket(bucket_url, region):
-        mr = MapReduce(bucket_id, kube, RANGES, MAPPER_IMAGE, REDUCER_IMAGE)
+        mr = MapReduce(bucket_id, kube, RANGES, MAPPER_IMAGE, REDUCER_IMAGE, app_name)
         work_done = False
         state = 0
 
