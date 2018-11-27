@@ -16,6 +16,9 @@ def main():
     kube = client.CoreV1Api()
 
     sc = scheduler.Scheduler(kube, APPS)
-    assert len(sc.deallocated) > spark_nodes + custom_nodes
+    assert len(sc.deallocated) >= spark_nodes + custom_nodes
     sc.allocate(APPS[0], spark_nodes)
-    sc.allocate(APPS[1], spark_nodes)
+    sc.allocate(APPS[1], custom_nodes)
+
+if __name__ == "__main__":
+    main()
