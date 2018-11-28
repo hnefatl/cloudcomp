@@ -1,6 +1,5 @@
 #!/usr/bin/env python3.7
 
-import s3helper
 import subprocess
 import string
 import random
@@ -13,7 +12,7 @@ import pathlib
 from scheduler import benchmark
 
 import clusterconfig
-from common import rds, db
+from common import rds, db, s3helper, spark
 
 RDS_USERNAME = "foo"
 RDS_PASSWORD = "hkXxep0A4^JZ1!H"
@@ -338,48 +337,12 @@ class Interface:
         print(f"Master endpoint: {master_endpoint}")
         print("Starting spark job")
         # Run the spark job
+        env = self._setup_env(rds_host, rds_port)
+        env["KUBERNETES_MASTER"] = master_endpoint
+        env["NUMBER_OF_NODES"] = str(self._config.slave_count - 1)
+
         start_s = time.monotonic()
-        subprocess.check_call(
-            [
-                "spark-submit",
-                # General config
-                "--master",
-                f"k8s://{master_endpoint}",
-                "--deploy-mode",
-                "cluster",
-                "--name",
-                "wordlettercount",
-                "--conf",
-                f"spark.executor.instances={self._config.slave_count - 1}",
-                "--conf",
-                "spark.kubernetes.pyspark.pythonVersion=3",
-                "--conf",
-                "spark.kubernetes.container.image=docker.io/clgroup8/wordlettercount:latest",
-                "--conf",
-                "spark.kubernetes.container.image.pullPolicy=Always",
-                "--conf",
-                "spark.driver.cores=0.6",
-                "--conf",
-                "spark.kubernetes.executor.request.cores=0.6",
-                # "--conf",
-                # f"spark.kubernetes.driver.label.app={SPARK_APP_NAME}",
-                # "--conf",
-                # f"spark.kubernetes.executor.label.app={SPARK_APP_NAME}",
-                # "--conf",
-                # f"spark.kubernetes.node.selector.app={SPARK_APP_NAME}",
-                # Script to run
-                "file:///usr/spark-2.4.0/work-dir/wordlettercount.py",
-                # Arguments to the script
-                self._aws_access_key,
-                self._aws_secret_key,
-                rds_host,
-                str(rds_port),
-                RDS_USERNAME,
-                RDS_PASSWORD,
-                RDS_DB_NAME,
-                input_url,
-            ]
-        )
+        subprocess.check_call(spark.spark_command(input_url, env))
         end_s = time.monotonic()
         print(f"Took {end_s - start_s}s")
 
@@ -511,7 +474,7 @@ class Interface:
         env["RDS_USERNAME"] = RDS_USERNAME
         env["RDS_PASSWORD"] = RDS_PASSWORD
         env["RDS_HOST"] = rds_host
-        env["RDS_PORT"] = rds_port
+        env["RDS_PORT"] = str(rds_port)
         env["AWS_S3_REGION"] = self._config.region
         return env
 

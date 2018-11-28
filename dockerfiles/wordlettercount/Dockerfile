@@ -41,7 +41,7 @@ RUN apk add --no-cache python3 python3-dev && \
 RUN pip3.6 install pymysql tabulate
 
 COPY wlc-spark/wordlettercount.py $SPARK_HOME/work-dir/
-COPY common/*.py $SPARK_HOME/work-dir/
+COPY common/*.py $SPARK_HOME/work-dir/common/
 COPY wlc-spark/jars/*.jar $SPARK_HOME/jars/
 
 ENTRYPOINT [ "/usr/entrypoint.sh" ]
