@@ -13,7 +13,7 @@ def convert_url_to_s3(url):
     # Check for a http(s) link to an s3 bucket, eg.
     # https://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-200MB.txt
     # Capture everything after the "amazonaws.com/" prefix, as we can make an S3 url from it
-    match = re.match(r"https?://s3\.[^/]+/(.*)", url)
+    match = re.match(r"https?://s3\.[^/]+\.amazonaws.com/(.*)", url)
     if match is not None:
         return f"s3a://{match.group(1)}"
     raise RuntimeError(

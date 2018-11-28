@@ -20,6 +20,8 @@ SPARK_BASE = [
     "spark.driver.cores=0.6",
     "--conf",
     "spark.kubernetes.executor.request.cores=0.6",
+    "--conf",
+    "spark.executor.extraJavaOptions=-Dcom.amazonaws.services.s3.enableV4=true",
 ]
 
 SPARK_FILE = "local:///usr/spark-2.4.0/work-dir/wordlettercount.py"

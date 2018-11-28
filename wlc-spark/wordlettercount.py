@@ -8,6 +8,8 @@ import re
 
 from common import db
 
+# from common import s3helper
+
 
 def is_ascii_alpha(word):
     # string isalpha method allows unicode, which we don't want
@@ -72,17 +74,17 @@ if __name__ == "__main__":
     db_user = sys.argv[5]
     db_pass = sys.argv[6]
     db_name = sys.argv[7]
+    # input_url = s3helper.convert_url_to_s3(sys.argv[8])
     input_url = sys.argv[8]
-    if input_url.startswith("s3://"):
-        input_url = f"s3a{input_url[2:]}"
-    if not input_url.startswith("s3a://"):
-        raise RuntimeError("input_file should be an s3:// or s3a:// url.")
 
     print(f"Access Key: {access_key}, Secret Key: {secret_key}")
 
     sc = pyspark.SparkContext(appName="WordLetterCount")
+    sc.setSystemProperty("com.amazonaws.services.s3.enableV4", "true")
     sc._jsc.hadoopConfiguration().set("fs.s3a.access.key", access_key)
     sc._jsc.hadoopConfiguration().set("fs.s3a.secret.key", secret_key)
+    # 
+    sc._jsc.hadoopConfiguration().set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
 
     start_time_s = time.monotonic()
     text_file = sc.textFile(input_url)
