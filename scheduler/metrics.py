@@ -3,6 +3,11 @@ import subprocess
 import json
 import yaml
 import urllib
+import re
+import time
+
+
+# Replace with kubectl top node
 
 
 # Deploy the metrics server pods onto the cluster
@@ -31,7 +36,10 @@ def deploy_metrics():
         try:
             for container in doc["spec"]["template"]["spec"]["containers"]:
                 if container["name"] == "metrics-server":
-                    container["args"] = ["--kubelet-insecure-tls"]
+                    container["args"] = [
+                        "--kubelet-insecure-tls",
+                        "--metric-resolution=5s",
+                    ]
         except KeyError:
             pass
 
@@ -55,33 +63,42 @@ def undeploy_metrics():
         subprocess.check_call(["kubectl", "delete", "-f", f"{url}/{file}"])
 
 
+def get_api_client():
+    kubernetes.config.load_kube_config()
+    return kubernetes.client.ApiClient()
+
+
 # Returns a dictionary mapping pod names to dictionaries containing the window in seconds of the metrics, the
 # timestamp of the measurement the cpu
 # usage percentage (0 being 0%, 1 being 100%), and the memory usage in KiB.
-def get_pod_metrics():
-    output = subprocess.check_output(
-        ["kubectl", "get", "--raw", "/apis/metrics.k8s.io/v1beta1/pods"]
+def get_node_metrics(api_client):
+    response, code, *_ = api_client.call_api(
+        "/apis/metrics.k8s.io/v1beta1/nodes", "GET", _preload_content=False
     )
-    metrics = {}
-    for usage_item in json.loads(output)["items"]:
-        try:
-            if usage_item["metadata"]["namespace"] == "kube-system":
-                continue
-            containers = usage_item["containers"]
-            cpu = sum(
-                convert_cpu(container["usage"]["cpu"]) for container in containers
-            )
-            mem = sum(
-                convert_mem(container["usage"]["memory"]) for container in containers
-            )
-            metrics[usage_item["metadata"]["name"]] = {
-                "window": int(usage_item["window"][:-1]),
-                "cpu": cpu,
-                "mem": mem,
-            }
-        except KeyError:
-            pass  # Malformed response, ignore
-    return metrics
+    contents = response.read().decode()
+    return json.loads(contents)
+    # if code != 200:
+    #    raise RuntimeError(f"Got error code {code} from server with body {contents}")
+    # metrics = {}
+    # for usage_item in json.loads(contents)["items"]:
+    #    try:
+    #        if usage_item["metadata"]["namespace"] == "kube-system":
+    #            continue
+    #        containers = usage_item["containers"]
+    #        cpu = sum(
+    #            convert_cpu(container["usage"]["cpu"]) for container in containers
+    #        )
+    #        mem = sum(
+    #            convert_mem(container["usage"]["memory"]) for container in containers
+    #        )
+    #        metrics[usage_item["metadata"]["name"]] = {
+    #            "window": int(usage_item["window"][:-1]),
+    #            "cpu": cpu,
+    #            "mem": mem,
+    #        }
+    #    except KeyError:
+    #        pass  # Malformed response, ignore
+    # return metrics
 
 
 def convert_cpu(cpu):
@@ -96,9 +113,35 @@ def convert_mem(mem_usage):
         return int(mem_usage[:-2])
     elif mem_usage.endswith("Mi"):
         return int(mem_usage[:-2]) * 1024
+    elif mem_usage.endswith("Gi"):
+        return int(mem_usage[:-2]) * 1024 * 1024
     elif mem_usage.endswith("K"):
         return int(float(mem_usage[:-1]) * 1.024)
     elif mem_usage.endswith("M"):
         return int(float(mem_usage[:-1]) * 1.000_024)
+    elif mem_usage.endswith("G"):
+        return int(float(mem_usage[:-1]) * 1.000_000_024)
     else:
         return int(mem_usage)
+
+
+def watch_pod_metrics(api_client):
+    can_stop = False
+    metrics = {}
+    i = 0
+    while not can_stop or len(metrics) > 0:
+        time.sleep(1)
+        i += 1
+        metrics = get_pod_metrics(api_client)
+        if len(metrics) > 0:
+            can_stop = True
+        print(f"{i}: {sorted(metrics.items())}")
+
+
+def test():
+    i = 0
+    while True:
+        i += 1
+        print(i)
+        subprocess.check_call(["kubectl", "top", "nodes"])
+        time.sleep(1)

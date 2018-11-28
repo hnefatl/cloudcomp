@@ -63,9 +63,7 @@ class Scheduler:
 
     # Call k8s API and sets the node label to the specified app
     def _set_app_on_node(self, node, app_name):
-        response = self._client.patch_node(
-            node, {"metadata": {"labels": {"app": app_name}}}
-        )
+        self._client.patch_node(node, {"metadata": {"labels": {"app": app_name}}})
 
     # Deallocate n nodes from app, making sure that the master is not scheduled on the deallocated nodes
     # This does not actually deallocate, but only modifies the schedulers internal state (required for an optimisation is transfer)
