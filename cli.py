@@ -333,13 +333,9 @@ class Interface:
             password=RDS_PASSWORD,
             table_suffix="spark",
         )
-        master_endpoint = self._get_master_endpoint()
-        print(f"Master endpoint: {master_endpoint}")
         print("Starting spark job")
         # Run the spark job
         env = self._setup_env(rds_host, rds_port)
-        env["KUBERNETES_MASTER"] = master_endpoint
-        env["NUMBER_OF_NODES"] = str(self._config.slave_count - 1)
 
         start_s = time.monotonic()
         subprocess.check_call(spark.spark_command(input_url, env))
@@ -384,7 +380,7 @@ class Interface:
             table_suffix="custom",
         )
 
-        args = ["python", "wordlettercount-custom/master.py", input_url]
+        args = ["python", "wlc-custom/master.py", input_url]
         if len(chunk_size) > 0:
             args.append(chunk_size)
         env = self._setup_env(rds_host, rds_port)
@@ -432,7 +428,7 @@ class Interface:
         if spark_input_size not in [200, 400, 500]:
             print("Input size is not 200, 400 or 500")
             return
-        spark_input_file = f"s3://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{spark_input_size}MB.txt"
+        spark_input_file = s3helper.convert_url_to_s3(f"https://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{spark_input_size}MB.txt")
 
         custom_input_size = int(
             input(
@@ -442,18 +438,39 @@ class Interface:
         if custom_input_size not in [200, 400, 500]:
             print("Input size is not 200, 400 or 500")
             return
-        custom_input_file = f"s3://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{custom_input_size}MB.txt"
+        custom_input_file = s3helper.convert_url_to_s3(f"https://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{custom_input_size}MB.txt")
 
         spark_nodes = int(input("Enter the number of nodes to run Spark on: "))
         custom_nodes = int(
             input("Enter the number of nodes to run custom MapReduce on: ")
         )
 
+        rds_host, rds_port, _ = self._get_or_create_rds_instance()
+        print("Resetting custom database tables")
+        db.initialise_instance(
+            host=rds_host,
+            port=rds_port,
+            db_name=RDS_DB_NAME,
+            username=RDS_USERNAME,
+            password=RDS_PASSWORD,
+            table_suffix="custom",
+        )
+        print("Resetting custom database tables")
+        db.initialise_instance(
+            host=rds_host,
+            port=rds_port,
+            db_name=RDS_DB_NAME,
+            username=RDS_USERNAME,
+            password=RDS_PASSWORD,
+            table_suffix="spark",
+        )
+        env = self._setup_env(rds_host, rds_port)
+
         spark_times = list()
         custom_times = list()
         for _ in range(number_of_runs):
-            (spark_time, custom_time) = benchmark.benchmark(
-                spark_input_file, custom_input_file, spark_nodes, custom_nodes
+            (spark_time, custom_time) = benchmark.run_benchmark(
+                spark_input_file, custom_input_file, spark_nodes, custom_nodes, env
             )
             spark_times.append(spark_time)
             custom_times.append(custom_time)
@@ -476,6 +493,8 @@ class Interface:
         env["RDS_HOST"] = rds_host
         env["RDS_PORT"] = str(rds_port)
         env["AWS_S3_REGION"] = self._config.region
+        env["KUBERNETES_MASTER"] = self._get_master_endpoint()
+        env["NUMBER_OF_NODES"] = str(self._config.slave_count - 1)
         return env
 
     def _run(self, args, **kwargs):

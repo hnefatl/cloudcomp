@@ -1,5 +1,5 @@
 from kubernetes import config, client
-import scheduler.schedulelib as scheduler
+from scheduler import schedulelib as scheduler
 import sys
 
 APPS = [scheduler.App("spark", "driver"), scheduler.App("custom", "")]

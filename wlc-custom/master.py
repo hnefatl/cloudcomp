@@ -7,6 +7,7 @@ import random
 import time
 import string
 import multiprocessing
+import os
 import json
 from mapreduce import MapReduce
 
@@ -45,20 +46,18 @@ def get_s3_url(bucket, job, tag):
 
 
 def main():
-    if len(sys.argv) not in [6, 7]:
-        print(
-            "Usage: master.py <input-url> <rds-hostname> <rds-port> <region> <app-name> [chunk-size]"
-        )
+    if len(sys.argv) not in [2, 3]:
+        print("Usage: master.py <input-url> [chunk-size]")
         sys.exit(1)
 
     input_url = sys.argv[1]
-    rds_host = sys.argv[2]
-    rds_port = int(sys.argv[3])
-    region = sys.argv[4]
-    app_name = sys.argv[5]
+    rds_host = os.environ["RDS_HOST"]
+    rds_port = int(os.environ["RDS_PORT"])
+    region = os.environ["AWS_S3_REGION"]
+    app_name = os.environ["APP_NAME"]
     chunk_size = 50_000_000
-    if len(sys.argv) == 7:
-        chunk_size = int(sys.argv[6])
+    if len(sys.argv) == 3:
+        chunk_size = int(sys.argv[2])
     if chunk_size <= 0:
         raise RuntimeError(f"Chunk size must be a positive number: got {chunk_size}")
 

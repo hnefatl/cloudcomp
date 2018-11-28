@@ -54,7 +54,7 @@ class Scheduler:
             self._clear_label(node)
 
     def _allocated_iter(self):
-        for nodes in self._allocated:
+        for nodes in self._allocated.values():
             for node in nodes:
                 yield node
 
