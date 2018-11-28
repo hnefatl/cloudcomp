@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 from collections import namedtuple
 from kubernetes import config, client
-from scheduler import Scheduler, App
+from scheduler.schedulelib import Scheduler, App
 
 # Metrics represents the potential metrics that the scheduler can base decisions on
 # name - is a string containing the name of the app exporting the Metrics

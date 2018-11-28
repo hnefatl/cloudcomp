@@ -1,4 +1,4 @@
-import scheduler
+import scheduler.schedulelib as scheduler
 from kubernetes import client, config
 
 APPS = [scheduler.App("spark", "driver"), scheduler.App("custom", "")]

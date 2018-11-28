@@ -1,11 +1,32 @@
 from kubernetes import config, client
-import scheduler
+import scheduler.schedulelib as scheduler
+import time
 import sys
 
 APPS = [scheduler.App("spark", "driver"), scheduler.App("custom", "")]
 
 
-def benchmark(spark_input_url, custom_input_url, spark_nodes, custom_nodes):
+def benchmark(f):
+    def benchmarked_f():
+        start = time.monotonic()
+        f()
+        end = time.monotonic()
+        return end - start
+
+    return benchmarked_f
+
+
+@benchmark
+def run_spark():
+    pass
+
+
+@benchmark
+def run_custom():
+    pass
+
+
+def run_benchmark(spark_input_url, custom_input_url, spark_nodes, custom_nodes):
     config.load_kube_config()
     kube = client.CoreV1Api()
 
@@ -27,4 +48,4 @@ if __name__ == "__main__":
     spark_nodes = int(sys.argv[3])
     custom_nodes = int(sys.argv[4])
 
-    benchmark(spark_input_url, custom_input_url, spark_nodes, custom_nodes)
+    run_benchmark(spark_input_url, custom_input_url, spark_nodes, custom_nodes)
