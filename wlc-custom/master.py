@@ -10,8 +10,7 @@ import multiprocessing
 import json
 from mapreduce import MapReduce
 
-import s3helper
-import db
+from common import db, s3helper
 
 MAPPER_IMAGE = "clgroup8/mapper:latest"
 REDUCER_IMAGE = "clgroup8/reducer:latest"

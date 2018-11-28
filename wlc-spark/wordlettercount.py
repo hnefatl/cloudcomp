@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 
 import sys
-import os
 import pyspark
 import time
 from math import ceil, floor
 import re
 
-import db
+from common import db
 
 
 def is_ascii_alpha(word):

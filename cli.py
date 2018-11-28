@@ -10,13 +10,15 @@ import re
 import time
 import json
 import pathlib
+from scheduler import benchmark
 
 import clusterconfig
-import rds
-import db
+from common import rds, db
 
-SPARK_APP_NAME = "spark"
-CUSTOM_WLCC_APP_NAME = "custom"
+RDS_USERNAME = "foo"
+RDS_PASSWORD = "hkXxep0A4^JZ1!H"
+RDS_DB_NAME = "kc506_rc691_CloudComputingCoursework"
+
 
 class Interface:
     def __init__(self, aws_access_key, aws_secret_key):
@@ -24,9 +26,6 @@ class Interface:
         self._aws_access_key = aws_access_key
         self._aws_secret_key = aws_secret_key
         self._rds_instance_id_prefix = "group8"
-        self._rds_username = "foo"
-        self._rds_password = "hkXxep0A4^JZ1!H"
-        self._rds_db_name = "kc506_rc691_CloudComputingCoursework"
         self._running = True
         self._dry_run = False
         self._cluster_started = False
@@ -49,13 +48,16 @@ class Interface:
             "31": self.get_admin_password,
             "32": self.get_admin_service_token,
             "4": self.delete_cluster,
+            "41": self.delete_rds_instance,
             "5": self.run_spark_app,
             "51": self.view_spark_app,
             "52": self.view_spark_app_output,
             "6": self.run_custom_app,
             "61": self.view_custom_app,
             "62": self.view_custom_app_output,
-            "7": self.delete_rds_instance,
+            "7": self.run_benchmark,
+            "8": self.run_static_scheduler,
+            "9": self.run_dynamic_scheduler,
             "c": lambda: subprocess.check_call("clear"),
             "b": lambda: subprocess.call("beep"),
         }
@@ -93,13 +95,16 @@ class Interface:
         print("    31: Get the admin password")
         print("    32: Get the admin service account token")
         print("4: Delete the cluster")
+        print("    41: Delete RDS instance")
         print("5: Run Spark WordLetterCount App")
         print("    51: View Spark App")
         print("    52: Show Output")
         print("6: Run Custom WordLetterCount App")
         print("    61: View Custom App")
         print("    62: Show Output")
-        print("7: Delete RDS instance")
+        print("7: Benchmark Spark and Custom")
+        print("8: Start the static scheduler")
+        print("9: Start the dynamic scheduler")
 
     def get_action(self):
         try:
@@ -198,6 +203,11 @@ class Interface:
         self._run_aws(["s3", "rb", self._s3_bucket_url, "--force"]).check_returncode()
         self._s3_bucket_url = None
         self._cluster_started = False
+
+    def delete_rds_instance(self):
+        print("Deleting RDS instance (may take a while)")
+        rds_instance_id = f"{self._rds_instance_id_prefix}-{self._config.region}"
+        rds.delete_entire_rds_instance(self._config.region, rds_instance_id)
 
     def set_existing_cluster(self):
         self._s3_bucket_url = input(
@@ -311,9 +321,9 @@ class Interface:
         db.initialise_instance(
             host=rds_host,
             port=rds_port,
-            db_name=self._rds_db_name,
-            username=self._rds_username,
-            password=self._rds_password,
+            db_name=RDS_DB_NAME,
+            username=RDS_USERNAME,
+            password=RDS_PASSWORD,
             table_suffix="spark",
         )
         master_endpoint = self._get_master_endpoint()
@@ -356,9 +366,9 @@ class Interface:
                 self._aws_secret_key,
                 rds_host,
                 str(rds_port),
-                self._rds_username,
-                self._rds_password,
-                self._rds_db_name,
+                RDS_USERNAME,
+                RDS_PASSWORD,
+                RDS_DB_NAME,
                 input_url,
             ]
         )
@@ -374,15 +384,11 @@ class Interface:
     def view_spark_app_output(self):
         rds_host, rds_port, _ = self._get_or_create_rds_instance()
         results = db.show_db_contents(
-            rds_host,
-            rds_port,
-            self._rds_db_name,
-            self._rds_username,
-            self._rds_password,
-            "spark",
+            rds_host, rds_port, RDS_DB_NAME, RDS_USERNAME, RDS_PASSWORD, "spark"
         )
         with tempfile.NamedTemporaryFile("w+") as f:
             f.write(results)
+            f.flush()
             subprocess.check_call(["less", f.name])
 
     def run_custom_app(self):
@@ -401,26 +407,17 @@ class Interface:
         db.initialise_instance(
             host=rds_host,
             port=rds_port,
-            db_name=self._rds_db_name,
-            username=self._rds_username,
-            password=self._rds_password,
+            db_name=RDS_DB_NAME,
+            username=RDS_USERNAME,
+            password=RDS_PASSWORD,
             table_suffix="custom",
         )
 
-        args = [
-            "python",
-            "wordlettercount-custom/master.py",
-            input_url,
-            rds_host,
-            str(rds_port),
-            self._config.region,
-            "",
-        ]
+        args = ["python", "wordlettercount-custom/master.py", input_url]
         if len(chunk_size) > 0:
             args.append(chunk_size)
-        env = os.environ.copy()
-        env["AWS_ACCESS_KEY_ID"] = self._aws_access_key
-        env["AWS_SECRET_ACCESS_KEY"] = self._aws_secret_key
+        env = self._setup_env(rds_host, rds_port)
+        env["APP_NAME"] = ""
 
         print("Starting custom job")
         start_s = time.monotonic()
@@ -441,21 +438,74 @@ class Interface:
     def view_custom_app_output(self):
         rds_host, rds_port, _ = self._get_or_create_rds_instance()
         results = db.show_db_contents(
-            rds_host,
-            rds_port,
-            self._rds_db_name,
-            self._rds_username,
-            self._rds_password,
-            "custom",
+            rds_host, rds_port, RDS_DB_NAME, RDS_USERNAME, RDS_PASSWORD, "custom"
         )
         with tempfile.NamedTemporaryFile("w+") as f:
             f.write(results)
+            f.flush()
             subprocess.check_call(["less", f.name])
 
-    def delete_rds_instance(self):
-        print("Deleting RDS instance (may take a while)")
-        rds_instance_id = f"{self._rds_instance_id_prefix}-{self._config.region}"
-        rds.delete_entire_rds_instance(self._config.region, rds_instance_id)
+    def run_benchmark(self):
+        print("Benchmarks are run against the S3 files provided in the Q&A")
+        number_of_runs = input(
+            "Enter the number of sample values to average (default is 3): "
+        )
+        if number_of_runs == "":
+            number_of_runs = 3
+        else:
+            number_of_runs = int(number_of_runs)
+
+        spark_input_size = int(
+            input("Enter the size of Spark input file (200, 400 or 500): ")
+        )
+        if spark_input_size not in [200, 400, 500]:
+            print("Input size is not 200, 400 or 500")
+            return
+        spark_input_file = f"s3://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{spark_input_size}MB.txt"
+
+        custom_input_size = int(
+            input(
+                "Enter the size of the custom MapReduce input file (200, 400 or 500): "
+            )
+        )
+        if custom_input_size not in [200, 400, 500]:
+            print("Input size is not 200, 400 or 500")
+            return
+        custom_input_file = f"s3://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{custom_input_size}MB.txt"
+
+        spark_nodes = int(input("Enter the number of nodes to run Spark on: "))
+        custom_nodes = int(
+            input("Enter the number of nodes to run custom MapReduce on: ")
+        )
+
+        spark_times = list()
+        custom_times = list()
+        for _ in range(number_of_runs):
+            (spark_time, custom_time) = benchmark.benchmark(
+                spark_input_file, custom_input_file, spark_nodes, custom_nodes
+            )
+            spark_times.append(spark_time)
+            custom_times.append(custom_time)
+        print(f"Average time for Spark: {sum(spark_times)/len(spark_times)}")
+        print(f"Average time for custom: {sum(custom_times)/len(custom_times)}")
+
+    def run_static_scheduler(self):
+        pass
+
+    def run_dynamic_scheduler(self):
+        pass
+
+    def _setup_env(self, rds_host, rds_port):
+        env = os.environ.copy()
+        env["AWS_ACCESS_KEY_ID"] = self._aws_access_key
+        env["AWS_SECRET_ACCESS_KEY"] = self._aws_secret_key
+        env["RDS_DB_NAME"] = RDS_DB_NAME
+        env["RDS_USERNAME"] = RDS_USERNAME
+        env["RDS_PASSWORD"] = RDS_PASSWORD
+        env["RDS_HOST"] = rds_host
+        env["RDS_PORT"] = rds_port
+        env["AWS_S3_REGION"] = self._config.region
+        return env
 
     def _run(self, args, **kwargs):
         dry = ["echo"] if self._dry_run else []
@@ -482,10 +532,7 @@ class Interface:
                 f"Creating RDS instance in region {self._config.region} (may take a while)"
             )
             rds.create_entire_rds_instance(
-                self._config.region,
-                rds_instance_id,
-                self._rds_username,
-                self._rds_password,
+                self._config.region, rds_instance_id, RDS_USERNAME, RDS_PASSWORD
             )
             instance_info = rds.get_instance_endpoint(
                 self._config.region, rds_instance_id
