@@ -1,0 +1,17 @@
+#! /bin/bash
+set -e
+
+# Bash script to build, tag and push docker images
+BASE_DIR="$(dirname $(dirname $(readlink -e $0)))"
+DOCKERFILES="$BASE_DIR/dockerfiles"
+
+function _build() {
+    docker build "$BASE_DIR" -f "$DOCKERFILES/$1/Dockerfile" -t clgroup8/$1
+    docker push "clgroup8/$1"
+}
+
+for image in "$@" ; do
+    _build "$image"
+done
+
+

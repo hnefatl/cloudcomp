@@ -1,9 +1,10 @@
-import s3helper
 import sys
 import re
 import json
 import itertools
 import os
+
+from common import s3helper
 
 
 delims = list(' \n\t\r\v\f,.;:?!"()[]{}-_')

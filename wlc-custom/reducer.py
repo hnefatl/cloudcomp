@@ -1,8 +1,9 @@
 import collections
-import s3helper
 import sys
 import os
 import json
+
+from common import s3helper
 
 
 def get_json(url):

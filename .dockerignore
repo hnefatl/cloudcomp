@@ -1,11 +1,5 @@
-# Ignore everything
-*
-**/*
-
-# Except:
-!rds.py
-!db.py
-!s3helper.py
-!wordlettercount/*.py
-!wordlettercount/*.jar
-!wordlettercount-custom/*.py
+utils/
+dockerfiles/
+*.py
+scheduler/
+misc/
