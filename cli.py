@@ -343,12 +343,12 @@ class Interface:
                 "spark.driver.cores=0.6",
                 "--conf",
                 "spark.kubernetes.executor.request.cores=0.6",
-                "--conf",
-                f"spark.kubernetes.driver.label.app={SPARK_APP_NAME}",
-                "--conf",
-                f"spark.kubernetes.executor.label.app={SPARK_APP_NAME}",
-                "--conf",
-                f"spark.kubernetes.node.selector.app={SPARK_APP_NAME}",
+                # "--conf",
+                # f"spark.kubernetes.driver.label.app={SPARK_APP_NAME}",
+                # "--conf",
+                # f"spark.kubernetes.executor.label.app={SPARK_APP_NAME}",
+                # "--conf",
+                # f"spark.kubernetes.node.selector.app={SPARK_APP_NAME}",
                 # Script to run
                 "file:///usr/spark-2.4.0/work-dir/wordlettercount.py",
                 # Arguments to the script
@@ -414,7 +414,7 @@ class Interface:
             rds_host,
             str(rds_port),
             self._config.region,
-            CUSTOM_WLCC_APP_NAME,
+            "",
         ]
         if len(chunk_size) > 0:
             args.append(chunk_size)
