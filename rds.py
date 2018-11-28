@@ -9,6 +9,7 @@ def delete_entire_rds_instance(region, instance_id):
         DBInstanceIdentifier=instance_id, SkipFinalSnapshot=True
     )
     rds.get_waiter("db_instance_deleted").wait(DBInstanceIdentifier=instance_id)
+
     subnet_group = resp["DBInstance"]["DBSubnetGroup"]
 
     subnet_group_name = subnet_group["DBSubnetGroupName"]
@@ -92,6 +93,12 @@ def create_vpc(region, availability_zones):
                 "ToPort": 3306,
                 "FromPort": 3306,
             },
+            {  # Allow http traffic to kubelet server
+                "IpProtocol": "tcp",
+                "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
+                "ToPort": 10255,
+                "FromPort": 10255,
+            },
             {  # Allow any traffic from the same security group
                 "IpProtocol": "-1",
                 "UserIdGroupPairs": [
@@ -154,3 +161,19 @@ def get_instance_endpoint(region, instance_id):
     except Exception:
         pass
     raise RuntimeError("No instance found")
+
+
+def get_custom_security_group_id(region, vpc_id):
+    ec2 = boto3.client("ec2", region_name=region)
+    response = ec2.describe_security_groups(
+        Filters=[
+            {"Name": "vpc-id", "Values": [vpc_id]},
+            {"Name": "group-name", "Values": ["group8.sec"]},
+        ]
+    )
+    sgs = list(group["GroupId"] for group in response["SecurityGroups"])
+    if len(sgs) != 1:
+        raise RuntimeError(
+            f"Got {len(sgs)} security groups in {vpc_id} with name group8.sec, expected 1."
+        )
+    return sgs[0]

@@ -18,6 +18,7 @@ import db
 SPARK_APP_NAME = "spark"
 CUSTOM_WLCC_APP_NAME = "custom"
 
+
 class Interface:
     def __init__(self, aws_access_key, aws_secret_key):
         self._config = clusterconfig.ClusterConfig()
@@ -141,6 +142,9 @@ class Interface:
         )
 
         _, _, vpc_id = self._get_or_create_rds_instance()
+        security_group_id = rds.get_custom_security_group_id(
+            self._config.region, vpc_id
+        )
 
         # Create resources
         print(f"Creating s3 bucket {self._s3_bucket_url} in {self._config.region}")
@@ -154,7 +158,7 @@ class Interface:
             self._config.json_show().encode(),
         )
         print(
-            f"Creating cluster: {self._config.cluster_name} in {self._config.kubernetes_zones}"
+            f"Creating cluster: {self._config.cluster_name} in {self._config.kubernetes_zones}, with additional security group {security_group_id}"
         )
         self._run_kops(
             [
@@ -169,10 +173,14 @@ class Interface:
                 str(self._config.master_count),
                 "--master-size",
                 self._config.master_type,
+                "--master-security-groups",
+                str(security_group_id),
                 "--node-size",
                 self._config.slave_type,
                 "--node-count",
                 str(self._config.slave_count),
+                "--node-security-groups",
+                str(security_group_id),
                 "--vpc",
                 vpc_id,
                 "--yes",
