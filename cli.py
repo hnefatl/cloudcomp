@@ -19,7 +19,6 @@ RDS_PASSWORD = "hkXxep0A4^JZ1!H"
 RDS_DB_NAME = "kc506_rc691_CloudComputingCoursework"
 
 
-
 class Interface:
     def __init__(self, aws_access_key, aws_secret_key):
         self._config = clusterconfig.ClusterConfig()
@@ -222,12 +221,12 @@ class Interface:
         )
         if not self._s3_bucket_url.startswith("s3://"):
             self._s3_bucket_url = "s3://" + self._s3_bucket_url
-        self._cluster_started = True
         print("Downloading cluster config")
         contents = s3helper.download_file(
             s3helper.get_bucket_from_s3_url(self._s3_bucket_url), "config.json"
         )
         self._config.json_load(contents.decode())
+        self._cluster_started = True
 
     def validate_cluster(self):
         if not self._cluster_started:
@@ -428,7 +427,9 @@ class Interface:
         if spark_input_size not in [200, 400, 500]:
             print("Input size is not 200, 400 or 500")
             return
-        spark_input_file = s3helper.convert_url_to_s3(f"https://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{spark_input_size}MB.txt")
+        spark_input_file = s3helper.convert_url_to_s3(
+            f"https://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{spark_input_size}MB.txt"
+        )
 
         custom_input_size = int(
             input(
@@ -438,7 +439,9 @@ class Interface:
         if custom_input_size not in [200, 400, 500]:
             print("Input size is not 200, 400 or 500")
             return
-        custom_input_file = s3helper.convert_url_to_s3(f"https://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{custom_input_size}MB.txt")
+        custom_input_file = s3helper.convert_url_to_s3(
+            f"https://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{custom_input_size}MB.txt"
+        )
 
         spark_nodes = int(input("Enter the number of nodes to run Spark on: "))
         custom_nodes = int(
@@ -446,24 +449,16 @@ class Interface:
         )
 
         rds_host, rds_port, _ = self._get_or_create_rds_instance()
-        print("Resetting custom database tables")
-        db.initialise_instance(
-            host=rds_host,
-            port=rds_port,
-            db_name=RDS_DB_NAME,
-            username=RDS_USERNAME,
-            password=RDS_PASSWORD,
-            table_suffix="custom",
-        )
-        print("Resetting custom database tables")
-        db.initialise_instance(
-            host=rds_host,
-            port=rds_port,
-            db_name=RDS_DB_NAME,
-            username=RDS_USERNAME,
-            password=RDS_PASSWORD,
-            table_suffix="spark",
-        )
+        for table in ["spark", "custom"]:
+            print(f"Resetting {table} database tables")
+            db.initialise_instance(
+                host=rds_host,
+                port=rds_port,
+                db_name=RDS_DB_NAME,
+                username=RDS_USERNAME,
+                password=RDS_PASSWORD,
+                table_suffix=table,
+            )
         env = self._setup_env(rds_host, rds_port)
 
         spark_times = list()

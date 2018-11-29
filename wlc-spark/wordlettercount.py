@@ -57,7 +57,6 @@ def write_to_db(host, port, db_name, username, password, data):
         cursor.executemany(
             "INSERT INTO letters_spark VALUES (%s,%s,%s,%s)", letter_data
         )
-        connection.commit()
 
 
 if __name__ == "__main__":
@@ -76,8 +75,6 @@ if __name__ == "__main__":
     db_name = sys.argv[7]
     # input_url = s3helper.convert_url_to_s3(sys.argv[8])
     input_url = sys.argv[8]
-
-    print(f"Access Key: {access_key}, Secret Key: {secret_key}")
 
     sc = pyspark.SparkContext(appName="WordLetterCount")
     sc.setSystemProperty("com.amazonaws.services.s3.enableV4", "true")
