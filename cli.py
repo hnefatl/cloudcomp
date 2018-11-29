@@ -323,6 +323,19 @@ class Interface:
         # Validate and convert to an S3 link
         input_url = s3helper.convert_url_to_s3(input_url)
 
+        bucket_name = s3helper.get_bucket_from_s3_url(input_url)
+        try:
+            file_region = s3helper.get_bucket_region(bucket_name)
+        except RuntimeError:
+            print(
+                f"Access denied when getting the region of the S3 bucket {bucket_name}."
+            )
+            file_region = input(
+                "Enter the region of the bucket (or blank for eu-west-2): "
+            )
+            if len(file_region) == 0:
+                file_region = "eu-west-2"
+
         print("Resetting spark database tables")
         db.initialise_instance(
             host=rds_host,
@@ -333,11 +346,14 @@ class Interface:
             table_suffix="spark",
         )
         print("Starting spark job")
+        print(
+            "For large inputs, ignore warnings about WatchConnectionManager: they're heartbeat timeouts."
+        )
         # Run the spark job
         env = self._setup_env(rds_host, rds_port)
 
         start_s = time.monotonic()
-        subprocess.check_call(spark.spark_command(input_url, env))
+        subprocess.check_call(spark.spark_command(input_url, file_region, env))
         end_s = time.monotonic()
         print(f"Took {end_s - start_s}s")
 
@@ -461,8 +477,8 @@ class Interface:
             )
         env = self._setup_env(rds_host, rds_port)
 
-        spark_times = list()
-        custom_times = list()
+        spark_times = []
+        custom_times = []
         for _ in range(number_of_runs):
             (spark_time, custom_time) = benchmark.run_benchmark(
                 spark_input_file, custom_input_file, spark_nodes, custom_nodes, env

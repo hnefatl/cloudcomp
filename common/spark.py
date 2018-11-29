@@ -3,6 +3,8 @@ import subprocess
 import os
 import sys
 
+import common.s3helper
+
 SPARK_BASE = [
     "spark-submit",
     # General config
@@ -47,7 +49,7 @@ def enable_scheduling_command(env):
     ]
 
 
-def get_wlc_cmd(input_url, env):
+def get_wlc_cmd(input_url, input_url_region, env):
     return [
         SPARK_FILE,
         env["AWS_ACCESS_KEY_ID"],
@@ -58,18 +60,19 @@ def get_wlc_cmd(input_url, env):
         env["RDS_PASSWORD"],
         env["RDS_DB_NAME"],
         input_url,
+        input_url_region,
     ]
 
 
-def spark_command(input_url, env, schedulable=False):
+def spark_command(input_url, input_url_region, env, schedulable=False):
     cmd = get_spark_base(env)
     if schedulable:
         cmd.extend(enable_scheduling_command(env))
-    cmd.extend(get_wlc_cmd(input_url, env))
+    cmd.extend(get_wlc_cmd(input_url, input_url_region, env))
     return cmd
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        raise RuntimeError("usage: spark.py <input_url>")
-    subprocess.check_call(spark_command(sys.argv[1], os.environ))
+    if len(sys.argv) != 3:
+        raise RuntimeError("Usage: spark.py <input url> <input url region>")
+    subprocess.check_call(spark_command(sys.argv[1], sys.argv[2], os.environ))

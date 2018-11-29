@@ -8,8 +8,6 @@ import re
 
 from common import db
 
-# from common import s3helper
-
 
 def is_ascii_alpha(word):
     # string isalpha method allows unicode, which we don't want
@@ -60,9 +58,9 @@ def write_to_db(host, port, db_name, username, password, data):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 9:
+    if len(sys.argv) != 10:
         raise RuntimeError(
-            "Usage: test.py <access_key> <secret_key> <db_host> <db_port> <db_user> <db_pass> <db_name> <input_file>\n"
+            "Usage: test.py <access_key> <secret_key> <db_host> <db_port> <db_user> <db_pass> <db_name> <input_file> <input file region>\n"
             + f"Got: {sys.argv[1:]}"
         )
 
@@ -73,15 +71,18 @@ if __name__ == "__main__":
     db_user = sys.argv[5]
     db_pass = sys.argv[6]
     db_name = sys.argv[7]
-    # input_url = s3helper.convert_url_to_s3(sys.argv[8])
     input_url = sys.argv[8]
+    input_file_region = sys.argv[9]
 
     sc = pyspark.SparkContext(appName="WordLetterCount")
+    # Some regions require v4 of a hashing library: we default to v2.
     sc.setSystemProperty("com.amazonaws.services.s3.enableV4", "true")
     sc._jsc.hadoopConfiguration().set("fs.s3a.access.key", access_key)
     sc._jsc.hadoopConfiguration().set("fs.s3a.secret.key", secret_key)
-    # 
-    sc._jsc.hadoopConfiguration().set("fs.s3a.endpoint", "s3.eu-west-2.amazonaws.com")
+    # For v4 of the hashing library, we need to explicitly set where we're downloading the file from
+    sc._jsc.hadoopConfiguration().set(
+        "fs.s3a.endpoint", f"s3.{input_file_region}.amazonaws.com"
+    )
 
     start_time_s = time.monotonic()
     text_file = sc.textFile(input_url)

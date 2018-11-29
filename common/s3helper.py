@@ -42,9 +42,14 @@ def get_bucket_and_file(file_url):
 
 
 # Get the length of a given file in a given bucket in bytes
-def get_file_length(bucket, filename):
+def get_file_length(bucket_name, filename):
     s3 = boto3.client("s3")
-    return s3.head_object(Bucket=bucket, Key=filename)["ContentLength"]
+    return s3.head_object(Bucket=bucket_name, Key=filename)["ContentLength"]
+
+
+def get_bucket_region(bucket_name):
+    s3 = boto3.client("s3")
+    return s3.get_bucket_location(Bucket=bucket_name)["LocationConstraint"]
 
 
 # Returns the bytes in the given range of the remote file as a UTF-8 decoded string
