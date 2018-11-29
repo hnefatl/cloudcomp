@@ -19,21 +19,19 @@ def runcli(
             proc = subprocess.Popen(
                 ["python", "cli.py"], stdin=subprocess.PIPE, stdout=f, stderr=f
             )
-            proc.stdin.writelines(
-                "\n".join(
-                    [
-                        "12",  # Enter existing cluster
-                        cluster,  # cluster url
-                        "7",  # Run benchmark
-                        "3",  # 3 trials
-                        spark_file_size,
-                        custom_file_size,
-                        num_spark,
-                        num_custom,
-                        "0",
-                    ]
-                )
-            )
+            inputs = [
+                "12",  # Enter existing cluster
+                cluster,  # cluster url
+                "7",  # Run benchmark
+                "3",  # 3 trials
+                str(spark_file_size),
+                str(custom_file_size),
+                str(num_spark),
+                str(num_custom),
+                "0",
+            ]
+            proc.stdin.write("\n".join(inputs).encode())
+            proc.wait()
         except Exception:
             traceback.print_exc(file=f)
 
