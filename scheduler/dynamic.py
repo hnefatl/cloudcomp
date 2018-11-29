@@ -28,7 +28,7 @@ class CustomCollector:
     _num = 0
 
     def __init__(self):
-        self.app = App(f"custom-{CustomCollector._num}", "")
+        self.app = App(f"custom-{CustomCollector._num}", "master")
         CustomCollector._num += 1
         pass
 

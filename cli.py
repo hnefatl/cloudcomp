@@ -395,17 +395,20 @@ class Interface:
             table_suffix="custom",
         )
 
-        args = ["python", "wlc-custom/master.py", input_url]
+        args = ["python", "wlc-custom/deploy.py", input_url]
         if len(chunk_size) > 0:
             args.append(chunk_size)
         env = self._setup_env(rds_host, rds_port)
         env["APP_NAME"] = ""
+        env["MASTER_ID"] = "".join(random.choices(string.ascii_lowercase, k=5))
+        env["AWS_S3_BUCKET"] = f"s3://group8.wlcc.{env['MASTER_ID']}"
 
-        print("Starting custom job")
-        start_s = time.monotonic()
-        subprocess.check_call(args, env=env)
-        end_s = time.monotonic()
-        print(f"Took {end_s - start_s}s")
+        with s3helper.temporary_bucket(env["AWS_S3_BUCKET"], self._config.region):
+            print("Starting custom job")
+            start_s = time.monotonic()
+            subprocess.check_call(args, env=env)
+            end_s = time.monotonic()
+            print(f"Took {end_s - start_s}s")
 
     def view_custom_app(self):
         directory = os.path.dirname(os.path.realpath(__file__))
@@ -476,15 +479,20 @@ class Interface:
                 table_suffix=table,
             )
         env = self._setup_env(rds_host, rds_port)
+        env["MASTER_ID"] = "".join(random.choices(string.ascii_lowercase, k=5))
+        env["AWS_S3_BUCKET"] = f"s3://group8.wlcc.{env['MASTER_ID']}"
 
         spark_times = []
         custom_times = []
         for _ in range(number_of_runs):
-            (spark_time, custom_time) = benchmark.run_benchmark(
-                spark_input_file, custom_input_file, spark_nodes, custom_nodes, env
-            )
-            spark_times.append(spark_time)
-            custom_times.append(custom_time)
+            env["MASTER_ID"] = "".join(random.choices(string.ascii_lowercase, k=5))
+            env["AWS_S3_BUCKET"] = f"s3://group8.wlcc.{env['MASTER_ID']}"
+            with s3helper.temporary_bucket(env["AWS_S3_BUCKET"], self._config.region):
+                (spark_time, custom_time) = benchmark.run_benchmark(
+                    spark_input_file, custom_input_file, spark_nodes, custom_nodes, env
+                )
+                spark_times.append(spark_time)
+                custom_times.append(custom_time)
         print(f"Average time for Spark: {sum(spark_times)/len(spark_times)}")
         print(f"Average time for custom: {sum(custom_times)/len(custom_times)}")
 
@@ -503,7 +511,6 @@ class Interface:
         env["RDS_PASSWORD"] = RDS_PASSWORD
         env["RDS_HOST"] = rds_host
         env["RDS_PORT"] = str(rds_port)
-        env["AWS_S3_REGION"] = self._config.region
         env["KUBERNETES_MASTER"] = self._get_master_endpoint()
         env["NUMBER_OF_NODES"] = str(self._config.slave_count - 1)
         return env

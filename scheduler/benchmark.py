@@ -7,7 +7,7 @@ import os
 
 from common import spark
 
-APPS = [scheduler.App("spark", "driver"), scheduler.App("custom", "")]
+APPS = [scheduler.App("spark", "driver"), scheduler.App("custom", "master")]
 EVENT_LOOP_INTERVAL = 1
 
 
@@ -34,7 +34,7 @@ def run_benchmark(spark_input_url, custom_input_url, spark_nodes, custom_nodes, 
             "python",
             os.path.join(
                 os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
-                "wlc-custom/master.py",
+                "wlc-custom/deploy.py",
             ),
             custom_input_url,
         ]

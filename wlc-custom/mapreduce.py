@@ -42,10 +42,13 @@ class JobFactory:
                                     client.V1EnvVar(name="JOB_ID", value=name),
                                 ],
                                 args=args,
+                                resources=client.V1ResourceRequirements(
+                                    requests={"cpu": "400m", "memory": "500Mi"}
+                                ),
                             )
                         ],
                         node_selector=ns,
-                    )
+                    ),
                 )
             ),
         )
