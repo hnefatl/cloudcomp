@@ -55,7 +55,7 @@ def main():
     rds_port = int(os.environ["RDS_PORT"])
     region = os.environ["AWS_S3_REGION"]
     app_name = os.environ["APP_NAME"]
-    chunk_size = 50_000_000
+    chunk_size = 10_000_000
     if len(sys.argv) == 3:
         chunk_size = int(sys.argv[2])
     if chunk_size <= 0:
