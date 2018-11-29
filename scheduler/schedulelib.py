@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 from kubernetes import client
+import re
 
 
 # An App is defined by a name, and an identifier to uniquely match the master node (if any)
@@ -9,9 +10,7 @@ class App:
         self._master = master  # TODO: Replace with regex?
 
     def is_master(self, app_name):
-        if self._master != "" and self._master in app_name:
-            return True
-        return False
+        return self._master != "" and self._master in app_name
 
     def __repr__(self):
         if self._master == "":

@@ -13,6 +13,7 @@ from scheduler import benchmark
 
 import clusterconfig
 from common import rds, db, s3helper, spark
+import scheduler.dynamic as dynamic
 
 RDS_USERNAME = "foo"
 RDS_PASSWORD = "hkXxep0A4^JZ1!H"
@@ -400,8 +401,6 @@ class Interface:
             args.append(chunk_size)
         env = self._setup_env(rds_host, rds_port)
         env["APP_NAME"] = ""
-        env["MASTER_ID"] = "".join(random.choices(string.ascii_lowercase, k=5))
-        env["AWS_S3_BUCKET"] = f"s3://group8.wlcc.{env['MASTER_ID']}"
 
         with s3helper.temporary_bucket(env["AWS_S3_BUCKET"], self._config.region):
             print("Starting custom job")
@@ -440,32 +439,10 @@ class Interface:
         else:
             number_of_runs = int(number_of_runs)
 
-        spark_input_size = int(
-            input("Enter the size of Spark input file (200, 400 or 500): ")
-        )
-        if spark_input_size not in [200, 400, 500]:
-            print("Input size is not 200, 400 or 500")
-            return
-        spark_input_file = s3helper.convert_url_to_s3(
-            f"https://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{spark_input_size}MB.txt"
-        )
-
-        custom_input_size = int(
-            input(
-                "Enter the size of the custom MapReduce input file (200, 400 or 500): "
-            )
-        )
-        if custom_input_size not in [200, 400, 500]:
-            print("Input size is not 200, 400 or 500")
-            return
-        custom_input_file = s3helper.convert_url_to_s3(
-            f"https://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{custom_input_size}MB.txt"
-        )
+        _, spark_input_file, _, custom_input_file = self._get_scheduler_inputs()
 
         spark_nodes = int(input("Enter the number of nodes to run Spark on: "))
-        custom_nodes = int(
-            input("Enter the number of nodes to run custom MapReduce on: ")
-        )
+        custom_nodes = int(input("Enter the number of nodes to run Custom on: "))
 
         rds_host, rds_port, _ = self._get_or_create_rds_instance()
         for table in ["spark", "custom"]:
@@ -479,8 +456,6 @@ class Interface:
                 table_suffix=table,
             )
         env = self._setup_env(rds_host, rds_port)
-        env["MASTER_ID"] = "".join(random.choices(string.ascii_lowercase, k=5))
-        env["AWS_S3_BUCKET"] = f"s3://group8.wlcc.{env['MASTER_ID']}"
 
         spark_times = []
         custom_times = []
@@ -497,10 +472,69 @@ class Interface:
         print(f"Average time for custom: {sum(custom_times)/len(custom_times)}")
 
     def run_static_scheduler(self):
-        pass
+        raise NotImplementedError()
+        # Stub. Leaving for reeto
+        # _, spark_input_file, _, custom_input_file = (
+        # self._get_scheduler_inputs()
+        # )
+
+        # rds_host, rds_port, _ = self._get_or_create_rds_instance()
+        # for table in ["spark", "custom"]:
+        # print(f"Resetting {table} database tables")
+        # db.initialise_instance(
+        # host=rds_host,
+        # port=rds_port,
+        # db_name=RDS_DB_NAME,
+        # username=RDS_USERNAME,
+        # password=RDS_PASSWORD,
+        # table_suffix=table,
+        # )
+
+        # env = self._setup_env(rds_host, rds_port)
+        # env["APP_NAME"] = "spark"
+        # subprocess.check_call(spark.spark_command(spark_input_file, "eu-west-2", env))
 
     def run_dynamic_scheduler(self):
-        pass
+        _, spark_input_file, _, custom_input_file = self._get_scheduler_inputs()
+
+        rds_host, rds_port, _ = self._get_or_create_rds_instance()
+        for table in ["spark", "custom"]:
+            print(f"Resetting {table} database tables")
+            db.initialise_instance(
+                host=rds_host,
+                port=rds_port,
+                db_name=RDS_DB_NAME,
+                username=RDS_USERNAME,
+                password=RDS_PASSWORD,
+                table_suffix=table,
+            )
+
+        env = self._setup_env(rds_host, rds_port)
+        env["MASTER_ID"] = "".join(random.choices(string.ascii_lowercase, k=5))
+        env["AWS_S3_BUCKET"] = f"s3://group8.wlcc.{env['MASTER_ID']}"
+        with s3helper.temporary_bucket(env["AWS_S3_BUCKET"], self._config.region):
+            dynamic.schedule(
+                self._config.region, spark_input_file, custom_input_file, env=env
+            )
+
+    def _get_scheduler_inputs(self):
+        spark_input_size = int(
+            input("Enter the size of Spark input file (200, 400 or 500): ")
+        )
+        if spark_input_size not in [200, 400, 500]:
+            raise RuntimeError("Input size is not 200, 400 or 500")
+        spark_input_file = s3helper.convert_url_to_s3(
+            f"https://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{spark_input_size}MB.txt"
+        )
+        custom_input_size = int(
+            input("Enter the size of the Custom input file (200, 400 or 500): ")
+        )
+        if custom_input_size not in [200, 400, 500]:
+            raise RuntimeError("Input size is not 200, 400 or 500")
+        custom_input_file = s3helper.convert_url_to_s3(
+            f"https://s3.eu-west-2.amazonaws.com/cam-cloud-computing-data-source/data-{custom_input_size}MB.txt"
+        )
+        return spark_input_size, spark_input_file, custom_input_size, custom_input_file
 
     def _setup_env(self, rds_host, rds_port):
         env = os.environ.copy()
@@ -513,6 +547,8 @@ class Interface:
         env["RDS_PORT"] = str(rds_port)
         env["KUBERNETES_MASTER"] = self._get_master_endpoint()
         env["NUMBER_OF_NODES"] = str(self._config.slave_count - 1)
+        env["MASTER_ID"] = "".join(random.choices(string.ascii_lowercase, k=5))
+        env["AWS_S3_BUCKET"] = f"s3://group8.wlcc.{env['MASTER_ID']}"
         return env
 
     def _run(self, args, **kwargs):

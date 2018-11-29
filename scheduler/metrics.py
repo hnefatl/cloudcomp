@@ -41,13 +41,14 @@ class Metrics:
 
 
 class MetricsCollector:
-    def __init__(self, client, region):
+    def __init__(self, client, region, app_names):
         self._client = client
         self._region = region
         ec2 = boto3.resource("ec2", region_name=self._region)
         self._instances = list(ec2.instances.all())
+        self._app_names = app_names
         # Maps app to current metrics for that node
-        self._app_metrics = collections.defaultdict(Metrics)
+        self._app_metrics = {app_name: Metrics() for app_name in app_names}
         # Stores metrics per pod uid, used for computing the total historic metrics for an app
         # after it deletes pods
         self._pod_metrics = collections.defaultdict(Metrics)
@@ -70,7 +71,9 @@ class MetricsCollector:
         pod_label_map = {
             pod.metadata.uid: pod.metadata.labels["app"]
             for pod in self._client.list_pod_for_all_namespaces(
-                watch=False, field_selector="status.phase=Running", label_selector="app"
+                watch=False,
+                field_selector="status.phase=Running",
+                label_selector=f"app in ({', '.join(app for app in self._app_names)})",
             ).items
         }
 
@@ -96,8 +99,7 @@ class MetricsCollector:
 
                 # If we've seen this pod before, decrease the running sum by the last
                 # value we saw before increasing it with the new value
-                if uid in self._pod_metrics:
-                    self._app_metrics[app_label].subtract(self._pod_metrics[uid])
+                self._app_metrics[app_label].subtract(self._pod_metrics[uid])
 
                 # Update our historic record of what this pod's used
                 if cpu is not None:

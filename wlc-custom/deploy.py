@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 from kubernetes import client, config
 import os
+import re
 import random
 import string
 import sys
@@ -12,12 +13,14 @@ EVENT_LOOP_INTERVAL = 1
 def build_env(env):
     new_env = []
     for k, v in env.items():
-        new_env.append(client.V1EnvVar(name=k, value=v))
+        if re.fullmatch(r"[-._a-zA-Z][-._a-zA-Z0-9]*", k):
+            new_env.append(client.V1EnvVar(name=k, value=v))
 
     return new_env
 
 
 def start_master(*args):
+    config.load_kube_config()
     kube = client.CoreV1Api()
 
     app_name = os.environ["APP_NAME"]
@@ -54,6 +57,7 @@ def start_master(*args):
 
 
 def wait_for_master(name):
+    config.load_kube_config()
     kube = client.CoreV1Api()
     while (
         len(

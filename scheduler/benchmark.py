@@ -39,7 +39,7 @@ def run_benchmark(spark_input_url, custom_input_url, spark_nodes, custom_nodes, 
             custom_input_url,
         ]
 
-        # Initalise termination condition and end time variable
+        # Initialise termination condition and end time variable
         spark_finished = False
         custom_finished = False
         spark_end = None
