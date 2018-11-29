@@ -27,7 +27,9 @@ def run_benchmark(spark_input_url, custom_input_url, spark_nodes, custom_nodes, 
         custom_env["APP_NAME"] = APPS[1].name
 
         # Setup commands for both
-        spark_cmd = spark.spark_command(spark_input_url, spark_env, schedulable=True)
+        spark_cmd = spark.spark_command(
+            spark_input_url, "eu-west-2", spark_env, schedulable=True
+        )
         custom_cmd = [
             "python",
             os.path.join(
