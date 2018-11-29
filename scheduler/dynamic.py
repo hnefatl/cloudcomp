@@ -6,7 +6,7 @@ import functools
 import metrics
 
 
-APPS = [App("spark", "driver"), App("custom", "")]
+APPS = [App("spark", "driver"), App("custom", "master")]
 
 
 def app_running(client, app):

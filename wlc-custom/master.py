@@ -20,14 +20,14 @@ RDS_PASSWORD = "hkXxep0A4^JZ1!H"
 RDS_DB_NAME = "kc506_rc691_CloudComputingCoursework"
 RANGES = ["a-l", "m-z"]
 NUM_MAPPERS_TO_REDUCERS = len(RANGES)
-NUM_REDUCERS_TO_REDUCERS = len(RANGES)
+NUM_REDUCERS_TO_REDUCERS = len(RANGES) * 2
 EVENT_LOOP_UPDATE_INTERVAL = 1
 
 
 # Authenticates with kubernetes and returns a new client
 # TODO(rc691): Support authentication on node in cluster
 def authenticate_kubernetes():
-    config.load_kube_config()
+    config.load_incluster_config()
     return client.BatchV1Api()
 
 
@@ -53,9 +53,10 @@ def main():
     input_url = sys.argv[1]
     rds_host = os.environ["RDS_HOST"]
     rds_port = int(os.environ["RDS_PORT"])
-    region = os.environ["AWS_S3_REGION"]
+    bucket_url = os.environ["AWS_S3_BUCKET"]
+    master_id = os.environ["MASTER_ID"]
     app_name = os.environ["APP_NAME"]
-    chunk_size = 10_000_000
+    chunk_size = 25_000_000
     if len(sys.argv) == 3:
         chunk_size = int(sys.argv[2])
     if chunk_size <= 0:
@@ -63,123 +64,117 @@ def main():
 
     kube = authenticate_kubernetes()
 
-    bucket_id = "".join(random.choices(string.ascii_lowercase, k=5))
-    bucket_url = f"s3://group8.wlcc.{bucket_id}"
     bucket_name = s3helper.get_bucket_from_s3_url(bucket_url)
-    print("Creating temporary bucket")
-    with s3helper.temporary_bucket(bucket_url, region):
-        mr = MapReduce(bucket_id, kube, RANGES, MAPPER_IMAGE, REDUCER_IMAGE, app_name)
+    mr = MapReduce(master_id, kube, RANGES, MAPPER_IMAGE, REDUCER_IMAGE, app_name)
+    work_done = False
+    state = 0
+
+    # Computing chunk sizes is slow: we want to compute it in the background while
+    # spinning up mappers, to allow us to reduce the output of the mappers
+    def spawn_mappers():
+        for chunk in s3helper.get_chunks(input_url, chunk_size):
+            chunk_computer_output.put(chunk)
+        chunk_computer_output.close()
+
+    chunk_computer = multiprocessing.Process(target=spawn_mappers)
+    chunk_computer_output = multiprocessing.Queue()
+    print("Starting to compute chunks")
+    chunk_computer.start()
+
+    # Event loop updates state and looks for possible reduction
+    # Terminates when state isn't changed, no reducers are started
+    # and there are no running jobs.
+    while (
+        work_done
+        or mr.is_active()
+        or chunk_computer.is_alive()
+        or not chunk_computer_output.empty()
+    ):
         work_done = False
-        state = 0
+        mr.update_state()
+        print(f"State {state} - Mappers: [{mr.mappers}]    Reducers: [{mr.reducers}]")
+        state += 1
 
-        # Computing chunk sizes is slow: we want to compute it in the background while
-        # spinning up mappers, to allow us to reduce the output of the mappers
-        def spawn_mappers():
-            for chunk in s3helper.get_chunks(input_url, chunk_size):
-                chunk_computer_output.put(chunk)
-            chunk_computer_output.close()
+        try:
+            while True:
+                c1, c2 = chunk_computer_output.get(block=False)
+                mr.start_mapper(
+                    input_url, bucket_url, str(c1), str(c2), ",".join(RANGES)
+                )
+        except multiprocessing.queues.Empty:
+            pass
 
-        chunk_computer = multiprocessing.Process(target=spawn_mappers)
-        chunk_computer_output = multiprocessing.Queue()
-        print("Starting to compute chunks")
-        chunk_computer.start()
-
-        # Event loop updates state and looks for possible reduction
-        # Terminates when state isn't changed, no reducers are started
-        # and there are no running jobs.
-        while (
-            work_done
-            or mr.is_active()
-            or chunk_computer.is_alive()
-            or not chunk_computer_output.empty()
+        # Reduce mappers before other reducers
+        # Logic behind explicit order is that the result of mappers are not
+        # as far along the reduction process, so will need more time to be processed.
+        # Termination condition is that there are not enough completed mappers
+        # to start a new reducer with AND the mappers which are completed are
+        # not the last few.
+        while len(mr.mappers.completed) >= NUM_MAPPERS_TO_REDUCERS or (
+            len(mr.mappers.running) == 0 and len(mr.mappers.completed) > 0
         ):
-            work_done = False
-            mr.update_state()
-            print(
-                f"State {state} - Mappers: [{mr.mappers}]    Reducers: [{mr.reducers}]"
+            to_reduce, remaining = take_at_most_n(
+                mr.mappers.completed, NUM_MAPPERS_TO_REDUCERS
             )
-            state += 1
+            mr.mappers.completed = remaining
+            for tag in RANGES:
+                mr.start_reducer(
+                    tag,
+                    ",".join(
+                        get_s3_url(bucket_url, mapper.metadata.name, tag)
+                        for mapper in to_reduce
+                    ),
+                    bucket_url,
+                )
+                work_done = True
 
-            try:
-                while True:
-                    c1, c2 = chunk_computer_output.get(block=False)
-                    mr.start_mapper(
-                        input_url, bucket_url, str(c1), str(c2), ",".join(RANGES)
-                    )
-            except multiprocessing.queues.Empty:
-                pass
-
-            # Reduce mappers before other reducers
-            # Logic behind explicit order is that the result of mappers are not
-            # as far along the reduction process, so will need more time to be processed.
-            # Termination condition is that there are not enough completed mappers
-            # to start a new reducer with AND the mappers which are completed are
-            # not the last few.
-            while len(mr.mappers.completed) >= NUM_MAPPERS_TO_REDUCERS or (
-                len(mr.mappers.running) == 0 and len(mr.mappers.completed) > 0
+        # Reduce multiple reducers when they are compatible
+        # Termination condition is slightly different because the final completed
+        # reducer does not need to be reduced.
+        for tag in RANGES:
+            while len(mr.reducers[tag].completed) >= NUM_REDUCERS_TO_REDUCERS or (
+                len(mr.reducers[tag].running) == 0
+                and len(mr.reducers[tag].completed) > 1
             ):
                 to_reduce, remaining = take_at_most_n(
-                    mr.mappers.completed, NUM_MAPPERS_TO_REDUCERS
+                    mr.reducers[tag].completed, NUM_REDUCERS_TO_REDUCERS
                 )
-                mr.mappers.completed = remaining
-                for tag in RANGES:
-                    mr.start_reducer(
-                        tag,
-                        ",".join(
-                            get_s3_url(bucket_url, mapper.metadata.name, tag)
-                            for mapper in to_reduce
-                        ),
-                        bucket_url,
-                    )
-                    work_done = True
-
-            # Reduce multiple reducers when they are compatible
-            # Termination condition is slightly different because the final completed
-            # reducer does not need to be reduced.
-            for tag in RANGES:
-                while len(mr.reducers[tag].completed) >= NUM_REDUCERS_TO_REDUCERS or (
-                    len(mr.reducers[tag].running) == 0
-                    and len(mr.reducers[tag].completed) > 1
-                ):
-                    to_reduce, remaining = take_at_most_n(
-                        mr.reducers[tag].completed, NUM_REDUCERS_TO_REDUCERS
-                    )
-                    mr.reducers[tag].completed = remaining
-                    mr.start_reducer(
-                        tag,
-                        ",".join(
-                            get_s3_url(bucket_url, reducer.metadata.name, "")
-                            for reducer in to_reduce
-                        ),
-                        bucket_url,
-                    )
-                    work_done = True
-            time.sleep(EVENT_LOOP_UPDATE_INTERVAL)
-
-        print("Processing reducer outputs")
-        # Collect the reducer outputs into a single dictionary
-        output = {"word": [], "letter": []}
-        for tag in RANGES:
-            if len(mr.reducers[tag].completed) < 1:
-                continue  # It's valid for the input to contain no letters in a range
-            elif len(mr.reducers[tag].completed) > 1:
-                raise RuntimeError(
-                    f"Expected exactly one reducer for {tag}: got {mr.reducers[tag]}"
+                mr.reducers[tag].completed = remaining
+                mr.start_reducer(
+                    tag,
+                    ",".join(
+                        get_s3_url(bucket_url, reducer.metadata.name, "")
+                        for reducer in to_reduce
+                    ),
+                    bucket_url,
                 )
-            final_reducer_id = mr.reducers[tag].completed[0].metadata.name
-            reducer_output = json.loads(
-                s3helper.download_file(bucket_name, final_reducer_id).decode()
+                work_done = True
+        time.sleep(EVENT_LOOP_UPDATE_INTERVAL)
+
+    print("Processing reducer outputs")
+    # Collect the reducer outputs into a single dictionary
+    output = {"word": [], "letter": []}
+    for tag in RANGES:
+        if len(mr.reducers[tag].completed) < 1:
+            continue  # It's valid for the input to contain no letters in a range
+        elif len(mr.reducers[tag].completed) > 1:
+            raise RuntimeError(
+                f"Expected exactly one reducer for {tag}: got {mr.reducers[tag]}"
             )
-            output["word"].extend(reducer_output["word"].items())
-            output["letter"].extend(reducer_output["letter"].items())
+        final_reducer_id = mr.reducers[tag].completed[0].metadata.name
+        reducer_output = json.loads(
+            s3helper.download_file(bucket_name, final_reducer_id).decode()
+        )
+        output["word"].extend(reducer_output["word"].items())
+        output["letter"].extend(reducer_output["letter"].items())
 
-        # Sort outputs: decreasing by frequency, increasing by word
-        for r in output:
-            output[r].sort(key=lambda x: x[0])
-            output[r].sort(key=lambda x: x[1], reverse=True)
+    # Sort outputs: decreasing by frequency, increasing by word
+    for r in output:
+        output[r].sort(key=lambda x: x[0])
+        output[r].sort(key=lambda x: x[1], reverse=True)
 
-        print("Writing results to database")
-        write_to_db(rds_host, rds_port, output)
+    print("Writing results to database")
+    write_to_db(rds_host, rds_port, output)
 
 
 def write_to_db(host, port, data):

@@ -2,7 +2,7 @@ from kubernetes import config, client
 from scheduler import schedulelib as scheduler
 import sys
 
-APPS = [scheduler.App("spark", "driver"), scheduler.App("custom", "")]
+APPS = [scheduler.App("spark", "driver"), scheduler.App("custom", "master")]
 
 
 def allocation(spark_input_size, custom_input_size, total_nodes):
