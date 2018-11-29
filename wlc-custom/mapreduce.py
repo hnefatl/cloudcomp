@@ -43,7 +43,7 @@ class JobFactory:
                                 ],
                                 args=args,
                                 resources=client.V1ResourceRequirements(
-                                    requests={"cpu": "400m", "memory": "200Mi"}
+                                    requests={"cpu": "200m", "memory": "200Mi"}
                                 ),
                             )
                         ],
