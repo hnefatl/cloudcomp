@@ -16,9 +16,6 @@ def runcli(
         "w+",
     ) as f:
         try:
-            proc = subprocess.Popen(
-                ["python", "cli.py"], stdin=subprocess.PIPE, stdout=f, stderr=f
-            )
             inputs = [
                 "12",  # Enter existing cluster
                 cluster,  # cluster url
@@ -30,8 +27,13 @@ def runcli(
                 str(num_custom),
                 "0",
             ]
-            proc.stdin.write("\n".join(inputs).encode())
-            proc.wait()
+            subprocess.run(
+                ["python", "cli.py"],
+                input="\n".join(inputs),
+                encoding="utf-8",
+                stdout=f,
+                stderr=f,
+            ).check_returncode()
         except Exception:
             traceback.print_exc(file=f)
 
