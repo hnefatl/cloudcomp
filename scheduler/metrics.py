@@ -119,3 +119,6 @@ class MetricsCollector:
     # CPU is given in fractional seconds of usage, rss and net are given in bytes.
     def get_metrics(self):
         return dict(self._app_metrics)
+
+    def get_app_metrics(self, app_name):
+        return self._app_metrics[app_name]
