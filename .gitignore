@@ -2,3 +2,4 @@
 .vscode/*
 wordlettercount/rds.py
 samples/
+benchmark-results/
