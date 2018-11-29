@@ -161,13 +161,13 @@ class Scheduler:
     # Transfers n nodes from app1 -> app2
     # In order to optimise number of requests, only uses deallocate_local, since
     # allocate replaces the node labels anyway
-    def transfer(self, app1, app2, n=1, drain=True):
-        assert app1.name in self._allocated
-        assert app2.name in self._allocated
-        transferred = self._deallocate_local(app1, n)
+    def transfer(self, from_app, to_app, n=1, drain=True):
+        assert from_app.name in self._allocated
+        assert to_app.name in self._allocated
+        transferred = self._deallocate_local(from_app, n)
         # Allocate first to allow apps to be scheduled ASAP
-        self.allocate(app2, n)
+        self.allocate(to_app, n)
         if drain:
             # Do not need to drain a node before allocation as drain only deletes pods belonging to a specified app
-            self._drain(app1, transferred)
+            self._drain(from_app, transferred)
         return transferred

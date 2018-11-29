@@ -1,8 +1,9 @@
 #! /usr/bin/env python3
 from collections import namedtuple
-from scheduler.schedulelib import Scheduler, App
 import functools
+import time
 
+from scheduler.schedulelib import Scheduler, App
 import metrics
 
 
@@ -38,16 +39,23 @@ def schedule(region):
         app1_running = True
         app2_running = True
         while app1_running or app2_running:
+            time.sleep(1)
             # Check if either app has finished
+            # If an app's finished, transfer all its allocated nodes to the other app
             if app1_running:
                 app1_running = app_running(kube_client, APPS[0])
+                sc.transfer(APPS[0], APPS[1], len(sc.allocated[APPS[0].name]))
             if app2_running:
                 app2_running = app_running(kube_client, APPS[1])
-            # If either app has finished, we don't need to update resources
+                sc.transfer(APPS[1], APPS[0], len(sc.allocated[APPS[1].name]))
+
+            # If either app has finished, we don't need to update resources so
+            # just keep looping.
             if not app1_running or not app2_running:
                 continue
 
             # Get new metrics
+            metrics_collector.update_metrics()
             app1_metrics = metrics_collector.get_app_metrics(APPS[0].name)
             app2_metrics = metrics_collector.get_app_metrics(APPS[1].name)
 
