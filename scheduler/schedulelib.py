@@ -73,10 +73,13 @@ class Scheduler:
             if n == 0:
                 break
 
-            podList = self._client.list_namespaced_pod(
-                "default",
-                field_selector=f"spec.nodeName={node},status.phase!=Succeeded",
-            )
+            try:
+                podList = self._client.list_namespaced_pod(
+                    "default",
+                    field_selector=f"spec.nodeName={node},status.phase!=Succeeded",
+                )
+            except Exception:
+                continue
             if any(app.is_master(pod.metadata.name) for pod in podList.items):
                 continue
             else:
@@ -104,15 +107,18 @@ class Scheduler:
     # Deletes pods belonging to app from the nodes
     def _drain(self, app, nodes):
         for node in nodes:
-            podList = self._client.list_namespaced_pod(
-                "default",
-                label_selector=f"app={app.name}",
-                field_selector=f"spec.nodeName={node}",
-            )
-            for pod in podList.items:
-                self._client.delete_namespaced_pod(
-                    pod.metadata.name, "default", body=client.V1DeleteOptions()
+            try:
+                podList = self._client.list_namespaced_pod(
+                    "default",
+                    label_selector=f"app={app.name}",
+                    field_selector=f"spec.nodeName={node}",
                 )
+                for pod in podList.items:
+                    self._client.delete_namespaced_pod(
+                        pod.metadata.name, "default", body=client.V1DeleteOptions()
+                    )
+            except Exception:
+                continue
 
     @property
     def deallocated(self):

@@ -79,9 +79,12 @@ class MetricsCollector:
 
         for instance_ip in self._instance_ips:
             # Pull the stats from the kubelet API
-            response = urllib.request.urlopen(
-                f"http://{instance_ip}:10255/stats/summary"
-            )
+            try:
+                response = urllib.request.urlopen(
+                    f"http://{instance_ip}:10255/stats/summary"
+                )
+            except Exception:
+                continue
             if response.code != 200:
                 continue  # Just skip failed responses
             stats = json.loads(response.read().decode())

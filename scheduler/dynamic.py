@@ -151,6 +151,7 @@ def schedule(region, spark_input_url, custom_input_url, env):
 
         spark_process = subprocess.Popen(spark_cmd, env=spark_env)
         custom_process = subprocess.Popen(custom_cmd, env=custom_env)
+        start_time = time.monotonic()
 
         # Wait for pods to start
         print("Waiting for app's masters to start")
@@ -170,14 +171,20 @@ def schedule(region, spark_input_url, custom_input_url, env):
                 app1_running = app_running(kube_client, APPS[0])
                 # The application just finished
                 if not app1_running:
+                    print(f"{APPS[0].name} finished.")
                     sc.transfer(APPS[0], APPS[1], len(sc.allocated[APPS[0].name]))
             if app2_running:
                 app2_running = app_running(kube_client, APPS[1])
                 # The application just finished
                 if not app2_running:
+                    print(f"{APPS[0].name} finished.")
                     sc.transfer(APPS[1], APPS[0], len(sc.allocated[APPS[1].name]))
 
-            print(f"{APPS[0].name}: {app1_running}, {APPS[1].name}: {app2_running}")
+            app1_allocated = len(sc.allocated[APPS[0].name])
+            app2_allocated = len(sc.allocated[APPS[1].name])
+            print(
+                f"{time.monotonic() - start_time}:   {APPS[0].name}: {app1_running} {app1_allocated}, {APPS[1].name}: {app2_running} {app2_allocated}"
+            )
             # If either app has finished, we don't need to update resources so
             # just keep looping.
             if not app1_running or not app2_running:
