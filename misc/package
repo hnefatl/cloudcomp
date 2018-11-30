@@ -34,6 +34,7 @@ cp ../common/rds.py misc/
 cp ../common/s3helper.py misc/
 cp ../common/spark.py misc/
 cp ../packaged_misc_readme.md misc/README
+cp ../README.md README
 
 mkdir -p group_code
 (cd .. ; git ls-tree -r master --name-only) | while read -r file ; do
