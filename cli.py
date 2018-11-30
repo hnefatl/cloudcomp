@@ -14,6 +14,7 @@ from scheduler import benchmark
 import clusterconfig
 from common import rds, db, s3helper, spark
 import scheduler.dynamic as dynamic
+from scheduler import static
 
 RDS_USERNAME = "foo"
 RDS_PASSWORD = "hkXxep0A4^JZ1!H"
@@ -472,27 +473,31 @@ class Interface:
         print(f"Average time for custom: {sum(custom_times)/len(custom_times)}")
 
     def run_static_scheduler(self):
-        raise NotImplementedError()
-        # Stub. Leaving for reeto
-        # _, spark_input_file, _, custom_input_file = (
-        # self._get_scheduler_inputs()
-        # )
+        spark_input_size, spark_input_file, custom_input_size, custom_input_file = (
+            self._get_scheduler_inputs()
+        )
 
-        # rds_host, rds_port, _ = self._get_or_create_rds_instance()
-        # for table in ["spark", "custom"]:
-        # print(f"Resetting {table} database tables")
-        # db.initialise_instance(
-        # host=rds_host,
-        # port=rds_port,
-        # db_name=RDS_DB_NAME,
-        # username=RDS_USERNAME,
-        # password=RDS_PASSWORD,
-        # table_suffix=table,
-        # )
+        rds_host, rds_port, _ = self._get_or_create_rds_instance()
+        for table in ["spark", "custom"]:
+            print(f"Resetting {table} database tables")
+            db.initialise_instance(
+                host=rds_host,
+                port=rds_port,
+                db_name=RDS_DB_NAME,
+                username=RDS_USERNAME,
+                password=RDS_PASSWORD,
+                table_suffix=table,
+            )
 
-        # env = self._setup_env(rds_host, rds_port)
-        # env["APP_NAME"] = "spark"
-        # subprocess.check_call(spark.spark_command(spark_input_file, "eu-west-2", env))
+        env = self._setup_env(rds_host, rds_port)
+        static.static(
+            spark_input_file,
+            spark_input_size,
+            custom_input_file,
+            custom_input_size,
+            self._config.slave_count,
+            env,
+        )
 
     def run_dynamic_scheduler(self):
         _, spark_input_file, _, custom_input_file = self._get_scheduler_inputs()
