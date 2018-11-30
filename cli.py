@@ -490,14 +490,15 @@ class Interface:
             )
 
         env = self._setup_env(rds_host, rds_port)
-        static.static(
-            spark_input_file,
-            spark_input_size,
-            custom_input_file,
-            custom_input_size,
-            self._config.slave_count,
-            env,
-        )
+        with s3helper.temporary_bucket(env["AWS_S3_BUCKET"], self._config.region):
+            static.static(
+                spark_input_file,
+                spark_input_size,
+                custom_input_file,
+                custom_input_size,
+                self._config.slave_count,
+                env,
+            )
 
     def run_dynamic_scheduler(self):
         spark_input_file = s3helper.convert_url_to_s3(
