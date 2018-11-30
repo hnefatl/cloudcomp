@@ -23,13 +23,14 @@ def allocation(spark_input_size, custom_input_size, total_nodes):
 
     min_spark = ceil(total_nodes / 2)
     min_custom = floor(total_nodes / 2)
-    min_val = f_spark(min_spark, spark_input_size) + f_custom(
-        min_custom, custom_input_size
+    min_val = max(
+        f_spark(min_spark, spark_input_size), f_custom(min_custom, custom_input_size)
     )
     for spark_nodes in range(2, total_nodes - 1):
         custom_nodes = total_nodes - spark_nodes
-        val = f_spark(spark_nodes, spark_input_size) + f_custom(
-            custom_nodes, custom_input_size
+        val = max(
+            f_spark(spark_nodes, spark_input_size),
+            f_custom(custom_nodes, custom_input_size),
         )
         if val < min_val:
             min_val = val
