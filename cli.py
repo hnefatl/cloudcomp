@@ -500,7 +500,12 @@ class Interface:
         )
 
     def run_dynamic_scheduler(self):
-        _, spark_input_file, _, custom_input_file = self._get_scheduler_inputs()
+        spark_input_file = s3helper.convert_url_to_s3(
+            input("Enter the url to the input file to use for Spark: ")
+        )
+        custom_input_file = s3helper.convert_url_to_s3(
+            input("Enter the url to the input file to use for Custom: ")
+        )
 
         rds_host, rds_port, _ = self._get_or_create_rds_instance()
         for table in ["spark", "custom"]:
