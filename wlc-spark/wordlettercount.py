@@ -101,6 +101,7 @@ if __name__ == "__main__":
         .collectAsMap()  # Get dictionary of words/letters
     )
     # Sort the resulting lists of pairs for words/letters
+    # We sort on the master rather than distributedly, as "groupBy" doesn't preserve order
     for r in results:
         results[r].sort(key=lambda x: x[0])
         results[r].sort(key=lambda x: x[1], reverse=True)

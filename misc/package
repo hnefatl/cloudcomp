@@ -1,0 +1,42 @@
+#!/bin/bash
+
+mkdir -p group8_cloudcomputing
+cd group8_cloudcomputing
+
+mkdir -p src
+
+mkdir -p src/step2
+cp ../wlc-spark/wordlettercount.py src/step2/
+
+mkdir -p src/step3
+cp ../wlc-custom/master.py src/step3/
+cp ../wlc-custom/mapper.py src/step3/
+cp ../wlc-custom/reducer.py src/step3/
+cp ../wlc-custom/mapreduce.py src/step3/
+cp ../wlc-custom/deploy.py src/step3/
+
+mkdir -p src/step5a
+cp ../scheduler/static.py src/step5a/
+cp ../scheduler/schedulelib.py src/step5a/
+
+mkdir -p src/step5b
+cp ../scheduler/dynamic.py src/step5b/
+cp ../scheduler/metrics.py src/step5b/
+cp ../scheduler/schedulelib.py src/step5b/
+
+mkdir -p cli
+cp ../cli.py cli/
+cp ../clusterconfig.py cli/
+
+mkdir -p misc
+cp ../common/db.py misc/
+cp ../common/rds.py misc/
+cp ../common/s3helper.py misc/
+cp ../common/spark.py misc/
+cp ../packaged_misc_readme.md misc/README
+
+mkdir -p group_code
+(cd .. ; git ls-tree -r master --name-only) | while read -r file ; do
+    mkdir -p "group_code/$(dirname $file)"
+    cp --no-dereference "../$file" "group_code/$file"
+done

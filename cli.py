@@ -384,7 +384,7 @@ class Interface:
         input_url = input("Enter url to the input file: ")
         input_url = s3helper.convert_url_to_s3(input_url)
 
-        chunk_size = input("Enter chunk size (or blank line for default chunk size): ")
+        chunk_size = input("Enter chunk size (or blank line for default of 25MB): ")
 
         print("Resetting custom database tables")
         db.initialise_instance(

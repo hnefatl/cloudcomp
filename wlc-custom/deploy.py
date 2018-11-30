@@ -13,6 +13,7 @@ EVENT_LOOP_INTERVAL = 1
 def build_env(env):
     new_env = []
     for k, v in env.items():
+        # Only inherit environment variables accepted by kubernetes
         if re.fullmatch(r"[-._a-zA-Z][-._a-zA-Z0-9]*", k):
             new_env.append(client.V1EnvVar(name=k, value=v))
 
