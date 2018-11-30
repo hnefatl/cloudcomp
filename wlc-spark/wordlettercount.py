@@ -60,7 +60,7 @@ def write_to_db(host, port, db_name, username, password, data):
 if __name__ == "__main__":
     if len(sys.argv) != 10:
         raise RuntimeError(
-            "Usage: test.py <access_key> <secret_key> <db_host> <db_port> <db_user> <db_pass> <db_name> <input_file> <input file region>\n"
+            "Usage: wordlettercount.py <access_key> <secret_key> <db_host> <db_port> <db_user> <db_pass> <db_name> <input_file> <input file region>\n"
             + f"Got: {sys.argv[1:]}"
         )
 
