@@ -8,6 +8,10 @@ TODO(kc506): E2E test and work out all dependencies.
 - `boto3`
 - `pymysql`
 - `tabulate`
+- `scipy`
+- `numpy`
+- `kubernetes`
+- `smart_open`
 
 ### External
 
@@ -55,6 +59,21 @@ A summary of the files in the directory are:
 This does not support being run locally, and must be run through the CLI using option 6. The output can be viewed with
 option 62. The required arguments are the input file (which has the same restrictions as the Task 2 input) and the chunk
 size (a default of 25MB is used). A valid k8s cluster must be running.
+
+## Task 4
+
+The benchmarking script is `scheduler/benchmark.py`. It uses `schedulelib.py` (described below) to statically allocate the required number of nodes for each benchmark.
+
+Benchmarking should be run through the CLI using option 7, which requires the input size and number of nodes for both spark and k8s to be specified (the input size is translated into one of the input samples specified in the Q&A document).
+
+## Task 5
+
+The base directory for Task 5 is `scheduler`. There are multiple entrypoints depending on the requirements.
+
+- `schedulelib.py`: This is a scheduling library which interfaces with k8s to control node allocations. The actual schedulers use this to implement their scheduling decisions.
+- `static.py`: This is the entrypoint for the static scheduler. It uses data from `data.json` to build a model and then makes a static allocation. This can be run using option 8 and requires the user to specify the input files to spark and custom and the input sizes for the respective inputs.
+- `dynamic.py`: This is the entrypoint for the dynamic scheduler. This can be run using option 9 and requires the user to specify the input files for spark and custom.
+- `metrics.py`: This is used by `dynamic.py` and handles getting metrics from k8s for use in the dynamic scheduler.
 
 ### Group Code
 
