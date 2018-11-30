@@ -2,22 +2,26 @@
 
 ## Dependencies
 
-### Python
+### External
 
-TODO(kc506): E2E test and work out all dependencies.
+- `kops 1.10 (git-8b52ea6d1)`
+- `kubectl 1.12`
+- `aws_cli 1.16.60`
+- `python 3.7.1` (eariler versions not supported)
+- `docker 18.09.0-ce` (only required if Docker images need to be built)
+- `spark 2.4 with hadoop 2.7` (specfically `pyspark`, but `spark-submit` is required as well)
+
+### Python
+These packages need to be installed to be compatible with python 3.7.1 (i.e. )
+
 - `boto3`
 - `pymysql`
 - `tabulate`
-- `scipy`
+- `scipy` (specifically `scipy.optimize`)
 - `numpy`
 - `kubernetes`
 - `smart_open`
 
-### External
-
-- `kops`
-- `kubectl`
-- `aws_cli`
 
 ## Building/Running
 
